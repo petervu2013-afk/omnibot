@@ -84,7 +84,7 @@ export function CampaignManager() {
   const [days, setDays] = useState(14);
   const [creating, setCreating] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
-  const toggles = state.adToggles || {};
+  const toggles = useMemo(() => state.adToggles || {}, [state.adToggles]);
 
   const rows = useMemo(() => {
     const base = campaignStats(state, lastDays(days)).filter((c) => (account === 'all' || c.adAccountId === account));

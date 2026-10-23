@@ -1,0 +1,16 @@
+{
+  "name": "@omnibot/ai-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Tạm thời: API AI (Claude) cho bản thử. Sẽ chuyển vào apps/api (NestJS) ở Bước 7.",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env index.js",
+    "build": "node --check index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
+    "express": "^5.3.0",
+    "zod": "^4.6.7"
+  }
+}

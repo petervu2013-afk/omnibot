@@ -1,6 +1,6 @@
 // Tài khoản & bảo mật: profile, email verification, password change, signed-in devices, login history, 2FA, account deletion.
 import { useState } from 'react';
-import { Monitor, Smartphone, LogOut, ShieldCheck, KeyRound, Trash2, MailCheck, MailWarning, History, UserRound } from 'lucide-react';
+import { Monitor, Smartphone, LogOut, ShieldCheck, KeyRound, Trash2, MailCheck, MailWarning, UserRound } from 'lucide-react';
 import { useAuth, passwordIssues, passwordStrength, DELETE_AFTER_DAYS, VERIFY_GRACE_DAYS } from '../../auth.jsx';
 import { DataTable, Status, fmtDate } from '../../components/kit.jsx';
 import { Modal, useToast } from '../../components/ui.jsx';

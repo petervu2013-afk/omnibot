@@ -1,5 +1,5 @@
 // OmniBot API server: AI auto-reply grounded on the product catalog, catalog scanning, campaign insights.
-// Run: npm run server  (reads ANTHROPIC_API_KEY from .env or the environment)
+// Run: pnpm dev:ai  (reads ANTHROPIC_API_KEY from apps/ai-server/.env or the environment)
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';

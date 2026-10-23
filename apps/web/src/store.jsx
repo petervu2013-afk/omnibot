@@ -227,7 +227,7 @@ function seed() {
   const crm = seedCrm({ customers, orders, conversations: allConversations, products: PRODUCTS, rand, now, uid, orderTotal });
   // A fresh lead nobody has called yet, so the SLA warning is visible in the demo.
   crm.tasks.push({ id: uid(), customerId: 'u2', staffId: 's3', type: 'call', kind: 'cadence', step: 0, due: minutes(73), title: 'Gọi lần 1 – xác nhận nhu cầu, ngân sách', done: false });
-  const ops = seedOps({ products: PRODUCTS, orders, customers, staff: crm.staff, rand, now, uid, orderTotal });
+  const ops = seedOps({ products: PRODUCTS, orders, customers, rand, now, uid, orderTotal });
   return {
     shop: { name: 'Gỗ Việt', email: 'admin@goviet.vn', hotline: '0900000000', field: 'Nội thất', currency: 'VND', timezone: 'Asia/Ho_Chi_Minh', language: 'vi', emailNotify: true },
     ai: { ...DEFAULT_AI },

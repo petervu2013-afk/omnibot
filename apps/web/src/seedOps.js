@@ -17,7 +17,7 @@ export const DEFAULT_SETTINGS = {
   plan: { name: 'BUSINESS', expires: null, quotas: [['Page / kênh', 10], ['Khách hàng', 50000], ['Nhân viên', 10], ['Dung lượng (GB)', 20], ['Credits AI / tháng', 20000], ['Tin nhắn hàng loạt / tháng', 100000]] },
 };
 
-export function seedOps({ products, orders, customers, staff, rand, now, uid, orderTotal }) {
+export function seedOps({ products, orders, customers, rand, now, uid, orderTotal }) {
   const pick = (arr) => arr[Math.floor(rand() * arr.length)];
   const code = (prefix, n) => `${prefix}${String(n).padStart(5, '0')}`;
 

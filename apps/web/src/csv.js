@@ -1,9 +1,9 @@
 export const normHeader = (s) =>
-  String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, ' ').trim();
+  String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, ' ').trim();
 
 // Parse pasted CSV / TSV / spreadsheet text. Returns { headers, rows } with raw cell strings.
 export function parseTable(text) {
-  const lines = String(text || '').replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim());
+  const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim());
   if (!lines.length) return { headers: [], rows: [] };
   const delim = ['\t', ';', ','].find((d) => lines[0].includes(d)) || ',';
   const split = (line) => {
@@ -37,7 +37,7 @@ export const toNumber = (s) => {
 };
 
 export function toCsv(rows) {
-  return '﻿' + rows.map((r) => r.map((x) => `"${String(x ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  return '\uFEFF' + rows.map((r) => r.map((x) => `"${String(x ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
 }
 
 export function downloadCsv(filename, rows) {

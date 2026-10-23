@@ -1,7 +1,7 @@
 // Simple rule-based bot engine: keyword match -> reply, else fallback.
 
 const normalize = (s) =>
-  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').trim();
+  s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').trim();
 
 const PHONE_RE = /(0|\+84)\d{9}\b/;
 

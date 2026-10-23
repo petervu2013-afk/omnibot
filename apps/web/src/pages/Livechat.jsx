@@ -150,7 +150,8 @@ function Thread({ conv, customer, channel, onBack, toast }) {
   const [roleplay, setRoleplay] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
   const bodyRef = useRef(null);
-  useEffect(() => { bodyRef.current?.scrollTo(0, bodyRef.current.scrollHeight); }, [conv.messages.length, typing[conv.id]]);
+  const isTyping = !!typing[conv.id];
+  useEffect(() => { bodyRef.current?.scrollTo(0, bodyRef.current.scrollHeight); }, [conv.messages.length, isTyping]);
 
   const setConv = (fn) => update((d) => fn(d.conversations.find((v) => v.id === conv.id)));
   const setCustomer = (fn) => update((d) => fn(d.customers.find((u) => u.id === customer.id)));

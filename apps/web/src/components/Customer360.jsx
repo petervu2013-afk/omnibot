@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Phone, MessageSquare, StickyNote, FileText, Handshake, Heart, CalendarClock, Megaphone, ShoppingCart, Gift } from 'lucide-react';
+import { Phone, MessageSquare, StickyNote, FileText, Handshake, Heart, CalendarClock, Megaphone, Gift } from 'lucide-react';
 import { useStore, uid, money, orderTotal, AD_PLATFORMS } from '../store.jsx';
 import {
   STAGES, STAGE, NURTURE_REASONS, LOST_REASONS, ACTIVITY_TYPES, CALL_OUTCOMES, timeline, customerValue, openTasks, upsellFor, logInteraction, setStage, addActivity, fmtDur,

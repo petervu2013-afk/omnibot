@@ -196,11 +196,11 @@ Tổng quan (sprint 2 tuần, khớp mục 8 hồ sơ dự án):
 
 ### BƯỚC 4 – Nối frontend web vào API
 **Việc cần làm**
-- [ ] Liệt kê chỗ frontend đang dùng `localStorage` (`src/store.jsx`, `src/auth.jsx`) và API thay thế.
+- [ ] Liệt kê chỗ frontend đang dùng `localStorage` (`apps/web/src/store.jsx`, `apps/web/src/auth.jsx`) và API thay thế.
 - [ ] Sinh client TypeScript từ `openapi.yaml` vào `packages/shared`.
 
 **Tạo code**
-- Thay `src/auth.jsx` bằng gọi API thật (giữ nguyên các màn hình đăng nhập/đăng ký/bảo mật); bỏ "Hộp thư demo".
+- Thay `apps/web/src/auth.jsx` bằng gọi API thật (giữ nguyên các màn hình đăng nhập/đăng ký/bảo mật); bỏ "Hộp thư demo".
 - Lớp dữ liệu dùng TanStack Query: sản phẩm, danh mục, khách hàng, nhân viên, cài đặt.
 - Ẩn/hiện menu và nút theo quyền (dữ liệu quyền lấy từ `/me`).
 - Trang Cài đặt → Nhân viên: mời qua email, đổi vai trò.
@@ -259,7 +259,7 @@ Tổng quan (sprint 2 tuần, khớp mục 8 hồ sơ dự án):
 - [ ] Ngân sách chi phí AI/tháng và hạn mức credit theo gói.
 
 **Tạo code**
-- `modules/ai`: chuyển logic từ `server/index.js` (Claude, structured output, cache prompt danh mục, fallback khi bị từ chối); hàng đợi **theo từng hội thoại** (tin gửi dồn → trả lời một lần với đủ ngữ cảnh); ghi `aiCostUsd`, credit.
+- `modules/ai`: chuyển logic từ `apps/ai-server/index.js` (Claude, structured output, cache prompt danh mục, fallback khi bị từ chối); hàng đợi **theo từng hội thoại** (tin gửi dồn → trả lời một lần với đủ ngữ cảnh); ghi `aiCostUsd`, credit.
 - Áp kết quả: lưu SĐT/địa chỉ → giao lead (Bước 8) → tạo đơn (Bước 9, tạm tắt cho tới khi Bước 9 xong) → chuyển nhân viên.
 - Kịch bản từ khóa, trả lời nhanh, trả lời ngoài giờ theo lịch làm việc.
 
@@ -338,7 +338,7 @@ Tổng quan (sprint 2 tuần, khớp mục 8 hồ sơ dự án):
 ---
 
 ### BƯỚC 13 – CRM & Dashboard (CRM-01→03, RPT-01)
-**Tạo code**: chuyển logic `src/crm.js` sang API: giai đoạn, hoạt động, việc cần làm, lịch bám đuổi, gọi lại, nuôi dưỡng, khách cũ & bán thêm; job nhắc việc + thông báo; API Dashboard (tổng hợp theo ngày, cập nhật realtime qua Socket.io).
+**Tạo code**: chuyển logic `apps/web/src/crm.js` sang API: giai đoạn, hoạt động, việc cần làm, lịch bám đuổi, gọi lại, nuôi dưỡng, khách cũ & bán thêm; job nhắc việc + thông báo; API Dashboard (tổng hợp theo ngày, cập nhật realtime qua Socket.io).
 
 **Kiểm tra code**
 - [ ] Test lịch bám đuổi tạo đúng giờ; "không nghe máy" tạo lịch gọi lại; lead quá SLA hiện cảnh báo.

@@ -70,7 +70,7 @@ function OrderList() {
       const c = customer(o.customerId);
       rows.push([o.id, c?.name, c?.phone, ORDER_STATUS[o.status].label, PAYMENT[o.payment], orderTotal(o, state.products), new Date(o.createdAt).toLocaleString('vi-VN')]);
     });
-    const csv = '﻿' + rows.map((r) => r.map((x) => `"${String(x ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = '\uFEFF' + rows.map((r) => r.map((x) => `"${String(x ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     a.download = 'don-hang.csv';

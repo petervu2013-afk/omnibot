@@ -1,0 +1,11 @@
+openapi: 3.1.0
+info:
+  title: OmniBot API
+  version: 0.0.1
+  description: Hợp đồng API của backend NestJS. Được bổ sung theo từng bước trong docs/IMPLEMENTATION_PLAN.md (Bước 1 – /health, Bước 2 – /auth/*, ...).
+servers:
+  - url: http://localhost:3000
+    description: Local
+paths: {}
+components:
+  schemas: {}

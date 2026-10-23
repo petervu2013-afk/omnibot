@@ -28,10 +28,10 @@
 | **App Android & iOS** | Sale, Thủ kho, Manager khi đi lại | Livechat + thông báo đẩy, Việc cần làm/CRM, tạo & xem đơn, tra tồn kho, quét mã nhập/xuất kho, Dashboard rút gọn. **Không** có: cài đặt hệ thống, mua gói phần mềm, báo cáo chi tiết (mở trên web) |
 
 ### 1.3 Hiện trạng (tại ngày cập nhật)
-- **Frontend web**: đã có giao diện cho hầu hết tính năng (React 18 + Vite, thư mục `src/`), chạy bằng dữ liệu mẫu trong `localStorage`.
-- **Đã có giao diện (giả lập, chưa có backend)**: đăng ký, đăng nhập, quên/đặt lại mật khẩu, xác minh email, quản lý thiết bị đăng nhập, đổi mật khẩu, lịch sử đăng nhập, xóa tài khoản (`src/auth.jsx`, `src/pages/auth/`, Cài đặt → Tài khoản & bảo mật).
+- **Frontend web**: đã có giao diện cho hầu hết tính năng (React 18 + Vite, thư mục `apps/web/src/`), chạy bằng dữ liệu mẫu trong `localStorage`.
+- **Đã có giao diện (giả lập, chưa có backend)**: đăng ký, đăng nhập, quên/đặt lại mật khẩu, xác minh email, quản lý thiết bị đăng nhập, đổi mật khẩu, lịch sử đăng nhập, xóa tài khoản (`apps/web/src/auth.jsx`, `apps/web/src/pages/auth/`, Cài đặt → Tài khoản & bảo mật).
 - **Chưa có**: backend, phân quyền thật, ứng dụng di động, mọi kết nối thật tới Facebook/Zalo/TikTok/GHN/GHTK/ngân hàng.
-- Có server mẫu `server/index.js` (Express + Claude API) cho AI trả lời tự động, quét danh mục, phân tích quảng cáo – sẽ chuyển vào backend NestJS.
+- Có server mẫu `apps/ai-server/index.js` (Express + Claude API) cho AI trả lời tự động, quét danh mục, phân tích quảng cáo – sẽ chuyển vào backend NestJS.
 
 ---
 
@@ -249,7 +249,7 @@ Quyền được kiểm tra ở **backend** (Role Guard + kiểm tra phạm vi d
 | Backend API | **NestJS** (TypeScript), REST + **Socket.io** (Livechat, Dashboard realtime) |
 | Database | **PostgreSQL** qua **Prisma ORM** (schema mục 7) |
 | Cache & hàng đợi | **Redis** + BullMQ: gửi tin hàng loạt có giãn cách, đồng bộ quảng cáo, nhắc việc, trigger, AI trả lời theo hàng đợi từng hội thoại |
-| AI | Dịch vụ AI dùng Claude API (chuyển từ `server/index.js`), ghi credit theo token |
+| AI | Dịch vụ AI dùng Claude API (chuyển từ `apps/ai-server/index.js`), ghi credit theo token |
 | Web | React 18 + Vite (frontend hiện tại) – thay `localStorage` bằng gọi API |
 | Mobile | React Native (Expo), dùng chung API & kiểu dữ liệu |
 | Webchat | Plugin WordPress/WooCommerce + widget JS kết nối Socket.io |
@@ -1281,11 +1281,11 @@ Mỗi báo cáo: chọn kỳ (7/14/28 ngày), lọc page/kho, **Export** CSV. �
 ## Phụ lục B. Danh sách file frontend chính
 | File | Nội dung |
 |---|---|
-| `src/App.jsx` | Menu & định tuyến |
-| `src/store.jsx`, `src/seedCrm.js`, `src/seedOps.js` | Dữ liệu & dữ liệu mẫu (thay bằng API khi có backend) |
-| `src/ai.js`, `src/autoReply.js`, `server/index.js` | AI trả lời tự động |
-| `src/crm.js` | Logic CRM, cảnh báo, năng suất |
-| `src/analytics.js` | Chỉ số quảng cáo, AI, tệp khách |
-| `src/ops.js` | Logic kho, thu chi |
-| `src/components/kit.jsx` | Bảng dữ liệu, thanh bên, form dùng chung |
-| `src/pages/*` | Từng màn hình (Home, Ads, Livechat, Crm, Orders + `pos/`, Reports + `reports/`, Settings + `settings/`) |
+| `apps/web/src/App.jsx` | Menu & định tuyến |
+| `apps/web/src/store.jsx`, `apps/web/src/seedCrm.js`, `apps/web/src/seedOps.js` | Dữ liệu & dữ liệu mẫu (thay bằng API khi có backend) |
+| `apps/web/src/ai.js`, `apps/web/src/autoReply.js`, `apps/ai-server/index.js` | AI trả lời tự động |
+| `apps/web/src/crm.js` | Logic CRM, cảnh báo, năng suất |
+| `apps/web/src/analytics.js` | Chỉ số quảng cáo, AI, tệp khách |
+| `apps/web/src/ops.js` | Logic kho, thu chi |
+| `apps/web/src/components/kit.jsx` | Bảng dữ liệu, thanh bên, form dùng chung |
+| `apps/web/src/pages/*` | Từng màn hình (Home, Ads, Livechat, Crm, Orders + `pos/`, Reports + `reports/`, Settings + `settings/`) |
