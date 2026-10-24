@@ -7,7 +7,8 @@ Monorepo (pnpm workspaces):
 | `apps/web` | Giao diện web React + Vite (mọi màn hình, đang chạy dữ liệu mẫu) | Có |
 | `apps/ai-server` | API AI tạm thời (Express + Claude) | Có – gộp vào `apps/api` ở Bước 7 |
 | `apps/api` | Backend NestJS + Prisma + PostgreSQL + Redis | Bước 1 |
-| `apps/worker`, `apps/mobile`, `packages/shared` | Hàng đợi, app di động, mã dùng chung | Các bước sau |
+| `apps/mobile` | App Android/iOS (Expo SDK 58 + Expo Router), giao diện điện thoại & iPad, dữ liệu mẫu | Giao diện mẫu – nối API ở Bước 17 |
+| `apps/worker`, `packages/shared` | Hàng đợi, mã dùng chung | Các bước sau |
 
 ## Bắt đầu
 ```bash
@@ -15,6 +16,8 @@ corepack enable pnpm      # một lần (Node 22+)
 pnpm install
 pnpm dev                  # http://localhost:5173 – tài khoản demo: admin@goviet.vn / Demo@1234
 pnpm dev:ai               # tùy chọn: AI Claude, cần apps/ai-server/.env (xem .env.example)
+pnpm --filter @omnibot/mobile start   # app di động: quét QR bằng Expo Go (điện thoại / iPad)
+pnpm --filter @omnibot/mobile web     # xem app di động trên trình duyệt: http://localhost:8081
 pnpm check                # lint + format + typecheck + test + build (giống CI)
 ```
 
