@@ -2,6 +2,14 @@
 
 > Đi kèm [Hồ sơ dự án OmniBot](PROJECT_SPEC.md) (mã tính năng AUTH-xx, POS-xx… và Prisma schema ở mục 7).
 > Nguyên tắc: **mỗi bước phải qua đủ 3 phần – Việc cần làm → Tạo code → Kiểm tra code – và đạt "Cổng chuyển bước" mới được sang bước sau.** Không làm song song hai bước phụ thuộc nhau.
+> Cập nhật 24/10/2026 theo Hồ sơ dự án **v2.1** (thêm giao diện mẫu điện thoại & iPad – Bước 0b; Bước 17–18 làm tiếp trên giao diện mẫu).
+
+**Trạng thái hiện tại**
+| Bước | Trạng thái | Còn lại |
+|---|---|---|
+| 0 – Chuẩn bị dự án | 🟡 Phần code **đạt** (monorepo pnpm, CI, lint/format/typecheck/test/build, báo cáo `docs/reports/STEP-00.md`) | Chủ dự án: tạo repo GitHub + bảo vệ nhánh `main`, nộp hồ sơ tài khoản bên ngoài (`docs/EXTERNAL_ACCOUNTS.md`), duyệt & merge |
+| 0b – Giao diện mẫu di động | 🟡 Code **đạt** (typecheck, lint, chạy thử khung điện thoại 375 px và iPad 1024 px) | Chủ dự án xem demo và duyệt |
+| 1 → 19 | ⬜ Chưa bắt đầu | Bắt đầu Bước 1 sau khi Bước 0 qua cổng |
 
 ---
 
@@ -38,6 +46,8 @@
 | `pnpm test` | 100% test qua; độ phủ code mới ≥ 80% (logic nghiệp vụ, phân quyền: ≥ 90%) |
 | `pnpm test:e2e` | Các luồng chính của bước qua |
 | `pnpm build` | Build web, API thành công |
+| `pnpm --filter @omnibot/mobile typecheck` + `lint` | 0 lỗi (đã nằm trong `pnpm lint` / `pnpm typecheck` gốc) – bắt buộc khi bước có sửa `apps/mobile` |
+| Xem trên 2 khung | Bước có giao diện di động: kiểm tra ở **điện thoại (375 × 812)** và **iPad (1024 × 768 ngang, 768 × 1024 dọc)** – không tràn chữ, nút ≥ 44 pt, không lỗi console |
 | `prisma migrate diff` | Migration khớp schema, chạy được trên DB trắng |
 | Chạy thử tay | Làm lại các test case thủ công trên máy local |
 
@@ -59,7 +69,7 @@ omnibot/
 │   ├── api/        NestJS + Prisma (backend)       ← tạo ở Bước 1
 │   ├── worker/     BullMQ jobs (gửi tin, đồng bộ)   ← tạo ở Bước 5
 │   ├── web/        React + Vite (frontend hiện tại) ← chuyển vào ở Bước 0
-│   └── mobile/     React Native (Expo)             ← tạo ở Bước 17
+│   └── mobile/     Expo SDK 58 + Expo Router        ← giao diện mẫu ở Bước 0b, nối API ở Bước 17
 ├── packages/
 │   └── shared/     Kiểu dữ liệu, schema kiểm tra (zod), hằng số dùng chung web/api/mobile
 ├── prisma/schema.prisma
@@ -85,6 +95,7 @@ Tổng quan (sprint 2 tuần, khớp mục 8 hồ sơ dự án):
 | Bước | Nội dung | Sprint | Phụ thuộc |
 |---|---|---|---|
 | 0 | Chuẩn bị: git, monorepo, CI, tài khoản bên ngoài | 1 | – |
+| 0b | Giao diện mẫu ứng dụng di động (điện thoại + iPad), dữ liệu giả lập | 1 | 0 |
 | 1 | Hạ tầng backend: NestJS + Prisma + PostgreSQL + Redis + Docker | 1 | 0 |
 | 2 | Xác thực: đăng ký, đăng nhập, token, phiên, quên mật khẩu, xóa tài khoản | 1 | 1 |
 | 3 | Shop, nhân viên, phân quyền RBAC, phạm vi dữ liệu, Audit log | 1 | 2 |
@@ -101,7 +112,7 @@ Tổng quan (sprint 2 tuần, khớp mục 8 hồ sơ dự án):
 | 14 | Quảng cáo Meta/TikTok: kết nối & đồng bộ | 4 | 8 |
 | 15 | Gửi tin hàng loạt Messenger/Zalo ZNS | 4 | 5, 6 |
 | 16 | Báo cáo, tích điểm, 2FA, bảo mật & hiệu năng, triển khai production | 4 | 9–15 |
-| 17 | Ứng dụng di động (Android/iOS) | 5 | 16 |
+| 17 | Ứng dụng di động (Android/iOS, điện thoại + iPad): nối API vào giao diện mẫu | 5 (có thể bắt đầu song song Bước 14–16) | 0b, 13 |
 | 18 | Tuân thủ & nộp App Store / Google Play | 5 | 17 |
 | 19 | Chạy thử với shop thật (pilot) & ra mắt | 5+ | 18 |
 
@@ -126,6 +137,32 @@ Tổng quan (sprint 2 tuần, khớp mục 8 hồ sơ dự án):
 - [ ] `apps/web` chạy `pnpm --filter web dev` giống hiện tại (mọi màn hình còn nguyên).
 
 **Cổng chuyển bước**: repo + CI hoạt động; danh sách hồ sơ bên ngoài đã nộp kèm ngày dự kiến được duyệt.
+
+---
+
+### BƯỚC 0b – Giao diện mẫu ứng dụng di động (MOB-01 → 08, giao diện)
+Mục đích: chốt giao diện điện thoại & iPad **trước** khi có backend, để duyệt trải nghiệm, chụp ảnh cửa hàng sớm và tránh làm lại ở Bước 17.
+
+**Việc cần làm**
+- [x] Chọn công nghệ: Expo SDK 58 + Expo Router (route theo file), TypeScript, React Compiler.
+- [x] Chốt phạm vi app theo hồ sơ mục 1.2: Tổng quan, Hội thoại, Việc cần làm, Đơn hàng, Kho, Thông báo, Tài khoản; không có cài đặt hệ thống / mua gói.
+- [x] Chốt quy tắc bố cục điện thoại / tablet (ngưỡng 768 px) và định danh `vn.omnibot.app` (tạm).
+
+**Tạo code**
+- [x] `apps/mobile`: `app.json` (tên, bundle id, `supportsTablet`, xoay màn hình), theme, bộ thành phần `ui.tsx`.
+- [x] 20 màn hình theo hồ sơ mục 5.5, dữ liệu mẫu `src/data/mock.ts`, trạng thái giả lập `src/lib/store.tsx`.
+- [x] Thanh tab dưới (điện thoại) / thanh bên trái (tablet); chia đôi màn hình Hội thoại và Đơn hàng trên tablet.
+- [x] Xóa tài khoản trong app (mật khẩu + gõ "XOA"), trang Điều khoản & chính sách mở được khi chưa đăng nhập.
+- [x] ESLint riêng cho mobile (`eslint-config-expo`), nối vào `pnpm lint` gốc.
+
+**Kiểm tra code**
+- [x] `pnpm --filter @omnibot/mobile typecheck` → 0 lỗi; `pnpm --filter @omnibot/mobile lint` → 0 lỗi.
+- [x] Chạy `pnpm --filter @omnibot/mobile web`: đăng nhập demo → đi qua 5 tab ở khung 375 × 812, không lỗi console.
+- [x] Khung iPad 1024 × 768: thanh bên trái, chia đôi Hội thoại và Đơn hàng hiển thị đúng.
+- [ ] Chạy trên máy thật bằng Expo Go: 1 Android, 1 iPhone, 1 iPad (chủ dự án / QA).
+- [ ] `npx expo-doctor` không có cảnh báo nghiêm trọng.
+
+**Cổng chuyển bước**: chủ dự án duyệt giao diện trên điện thoại và iPad; danh sách chỉnh sửa (nếu có) được ghi vào Bước 17.
 
 ---
 
@@ -384,15 +421,26 @@ Tổng quan (sprint 2 tuần, khớp mục 8 hồ sơ dự án):
 
 ---
 
-### BƯỚC 17 – Ứng dụng di động (MOB-01 → 06, AUTH-12)
-**Tạo code**: `apps/mobile` (Expo): đăng nhập (token trong Keychain/Keystore), vân tay/Face ID, chọn shop, Livechat, thông báo đẩy (FCM/APNs), việc cần làm, đơn & kho (quét mã), Dashboard rút gọn; ẩn mua gói trên iOS.
+### BƯỚC 17 – Ứng dụng di động (MOB-01 → 08, AUTH-12)
+**Việc cần làm**
+- [ ] Chốt `bundleIdentifier` / `package` chính thức (không đổi được sau khi nộp) và tạo app trên App Store Connect + Play Console.
+- [ ] Đưa kiểu dữ liệu dùng chung vào `packages/shared` (web, API, mobile cùng dùng); liệt kê API app cần (auth, hội thoại, việc, đơn, kho, thông báo, thiết bị).
+- [ ] Viết test case cho cả điện thoại và iPad (xoay ngang/dọc, Split View).
+
+**Tạo code** (làm tiếp trên giao diện mẫu Bước 0b, **không** dựng lại)
+- [ ] Thay `src/data/mock.ts` + `src/lib/store.tsx` bằng lớp gọi API (TanStack Query) + Socket.io cho Livechat realtime.
+- [ ] Token lưu bằng `expo-secure-store` (Keychain/Keystore), làm mới token tự động; vân tay/Face ID bằng `expo-local-authentication`; chọn shop.
+- [ ] Thông báo đẩy `expo-notifications` (FCM/APNs), lưu push token theo phiên, deep link `omnibot://` tới đúng hội thoại/đơn.
+- [ ] Quét mã vạch thật bằng `expo-camera` (thêm chuỗi xin quyền camera trong `app.json`).
+- [ ] Ẩn mọi nút mua/nâng cấp gói trên iOS; biểu tượng, màn hình chờ theo thương hiệu; `eas.json` (development / preview / production).
 
 **Kiểm tra code**
-- [ ] Chạy trên ≥ 3 máy Android (bản 10–mới nhất) và ≥ 2 iPhone.
+- [ ] `pnpm lint`, `pnpm typecheck`, unit test lớp API & store (≥ 80%).
+- [ ] Chạy trên ≥ 3 máy Android (bản 10–mới nhất), ≥ 2 iPhone và ≥ 1 iPad (xoay ngang/dọc, Split View).
 - [ ] Thông báo đẩy đến < 5 giây khi app tắt; đăng xuất từ web → app mất quyền ở lần gọi kế tiếp.
-- [ ] Test giao diện tự động (Maestro/Detox) cho đăng nhập, trả lời chat, tạo đơn.
+- [ ] Test giao diện tự động (Maestro) cho đăng nhập, trả lời chat, tạo đơn – chạy ở cả khung điện thoại và tablet.
 
-**Cổng chuyển bước**: bản TestFlight + Internal testing chạy ổn 1 tuần nội bộ.
+**Cổng chuyển bước**: bản TestFlight + Internal testing chạy ổn 1 tuần nội bộ trên điện thoại và iPad.
 
 ---
 
@@ -405,6 +453,8 @@ Tổng quan (sprint 2 tuần, khớp mục 8 hồ sơ dự án):
 - [ ] Không có nút mua gói trên iOS.
 - [ ] Target API level Android theo yêu cầu hiện hành; file `.aab` ký bằng Play App Signing.
 - [ ] Thử kín ≥ 14 ngày (bắt buộc nếu tài khoản Google Play cá nhân, ≥ 12 người thử).
+- [ ] Ảnh chụp màn hình đủ kích thước (hồ sơ mục 5.5): iPhone 6.9", **iPad 13" (bắt buộc vì app hỗ trợ iPad)**, Android điện thoại + tablet 7"/10", ảnh nổi bật 1024 × 500.
+- [ ] `ITSAppUsesNonExemptEncryption = false`, mô tả quyền camera/thông báo bằng tiếng Việt rõ mục đích.
 
 **Cổng chuyển bước**: cả hai cửa hàng duyệt bản phát hành.
 
@@ -433,6 +483,6 @@ BƯỚC XX – <tên>                     Ngày: __/__/____   Người phụ tr�
 ---
 
 ## Phần IV. Thời gian & lưu ý
-- 20 bước trên khớp 5 sprint × 2 tuần **chỉ khi** đội đủ người (3–4 backend, 2 frontend/mobile, 1 QA) hoặc chỉ làm mục **P0** trước. Với đội 2 backend + 1 frontend, dự kiến **18–25 tuần** (như hồ sơ dự án).
+- 21 bước (0, 0b, 1–19) trên khớp 5 sprint × 2 tuần **chỉ khi** đội đủ người (3–4 backend, 2 frontend/mobile, 1 QA) hoặc chỉ làm mục **P0** trước. Với đội 2 backend + 1 frontend, dự kiến **18–25 tuần** (như hồ sơ dự án).
 - Thời gian chờ duyệt bên ngoài (Meta, Zalo ZNS, Apple/Google) không phụ thuộc đội – đã đưa vào Bước 0 để chạy song song.
 - Bước nào không qua được cổng thì **dừng lại sửa**, không dời lỗi sang bước sau; nếu trễ, cắt bớt mục P1/P2 thay vì bỏ kiểm tra.

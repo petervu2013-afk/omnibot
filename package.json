@@ -10,7 +10,7 @@
     "dev": "pnpm --filter @omnibot/web dev",
     "dev:ai": "pnpm --filter @omnibot/ai-server start",
     "build": "pnpm -r --if-present build",
-    "lint": "eslint .",
+    "lint": "eslint . && pnpm --filter @omnibot/mobile lint",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
