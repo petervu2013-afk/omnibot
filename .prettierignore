@@ -11,3 +11,5 @@ apps/ai-server/index.js
 .expo
 expo-env.d.ts
 apps/mobile/assets
+apps/api/src/generated
+apps/api/prisma/migrations

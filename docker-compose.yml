@@ -1,0 +1,57 @@
+# Local / staging stack for the backend:  docker compose up --build
+#   postgres + redis → migrate (prisma migrate deploy, runs once) → api on http://localhost:3000 (/health)
+# Secrets: put real values in apps/api/.env (copied from .env.example); the hosts below override the DB/Redis URLs.
+name: omnibot
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: omnibot
+      POSTGRES_PASSWORD: omnibot
+      POSTGRES_DB: omnibot
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
+    ports: ['5432:5432']
+    volumes: ['pgdata:/var/lib/postgresql']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U omnibot -d omnibot']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    ports: ['6379:6379']
+    volumes: ['redisdata:/data']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: { context: ., dockerfile: apps/api/Dockerfile, target: build }
+    command: ['pnpm', '--filter', '@omnibot/api', 'prisma:deploy']
+    environment:
+      DATABASE_URL: postgresql://omnibot:omnibot@postgres:5432/omnibot
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    env_file:
+      - path: apps/api/.env
+        required: false
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgresql://omnibot:omnibot@postgres:5432/omnibot
+      REDIS_URL: redis://redis:6379
+    ports: ['3000:3000']
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisdata:

@@ -9,7 +9,8 @@
 |---|---|---|
 | 0 – Chuẩn bị dự án | 🟡 Phần code **đạt** (monorepo pnpm, CI, lint/format/typecheck/test/build, báo cáo `docs/reports/STEP-00.md`) | Chủ dự án: tạo repo GitHub + bảo vệ nhánh `main`, nộp hồ sơ tài khoản bên ngoài (`docs/EXTERNAL_ACCOUNTS.md`), duyệt & merge |
 | 0b – Giao diện mẫu di động | 🟡 Code **đạt** (typecheck, lint, chạy thử khung điện thoại 375 px và iPad 1024 px) | Chủ dự án xem demo và duyệt |
-| 1 → 19 | ⬜ Chưa bắt đầu | Bắt đầu Bước 1 sau khi Bước 0 qua cổng |
+| 1 – Hạ tầng backend | 🟡 Code **đạt** (lint, typecheck, 26 unit + 14 e2e trên PostgreSQL, migrate trên DB trắng; báo cáo `docs/reports/STEP-01.md`) | Staging HTTPS + CI chạy thật (cần VPS, repo GitHub từ Bước 0); build thử Docker |
+| 2 → 19 | ⬜ Chưa bắt đầu | Bước 2 – Xác thực |
 
 ---
 
@@ -66,13 +67,12 @@
 ```
 omnibot/
 ├── apps/
-│   ├── api/        NestJS + Prisma (backend)       ← tạo ở Bước 1
+│   ├── api/        NestJS 12 + Prisma 7 (backend, prisma/schema.prisma) ← Bước 1
 │   ├── worker/     BullMQ jobs (gửi tin, đồng bộ)   ← tạo ở Bước 5
 │   ├── web/        React + Vite (frontend hiện tại) ← chuyển vào ở Bước 0
 │   └── mobile/     Expo SDK 58 + Expo Router        ← giao diện mẫu ở Bước 0b, nối API ở Bước 17
 ├── packages/
 │   └── shared/     Kiểu dữ liệu, schema kiểm tra (zod), hằng số dùng chung web/api/mobile
-├── prisma/schema.prisma
 ├── docs/           PROJECT_SPEC.md, IMPLEMENTATION_PLAN.md, openapi.yaml
 ├── docker-compose.yml
 └── .github/workflows/ci.yml

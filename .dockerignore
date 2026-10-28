@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/.env
+**/.pgdata
+**/.expo
+**/coverage
+apps/api/src/generated
+.git
