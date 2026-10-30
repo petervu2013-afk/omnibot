@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EnvValidationError, validateEnv } from './env.js';
+import { durationMs, EnvValidationError, validateEnv } from './env.js';
 
 const valid = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
@@ -53,6 +53,23 @@ describe('validateEnv', () => {
     const list = problems({ ...example, NODE_ENV: 'production' });
     expect(list).toContain('ENCRYPTION_KEY: đang dùng khóa mẫu trong .env.example');
     expect(list).toContain('JWT_ACCESS_SECRET: đang dùng giá trị mẫu trong .env.example');
+  });
+
+  it('picks the mail transport and enforces real email + CAPTCHA in production', () => {
+    expect(validateEnv(valid).MAIL_TRANSPORT).toBe('file');
+    expect(validateEnv({ ...valid, NODE_ENV: 'test' }).MAIL_TRANSPORT).toBe('memory');
+    expect(validateEnv({ ...valid, SMTP_URL: 'smtp://u:p@mail.example.vn:587' }).MAIL_TRANSPORT).toBe('smtp');
+    expect(problems({ ...valid, MAIL_TRANSPORT: 'smtp' })).toEqual(['SMTP_URL: bắt buộc khi MAIL_TRANSPORT=smtp']);
+    const prod = problems({ ...valid, NODE_ENV: 'production' });
+    expect(prod).toContain('SMTP_URL: production phải gửi email thật qua SMTP');
+    expect(prod).toContain('TURNSTILE_SECRET_KEY: bắt buộc ở production (CAPTCHA đăng nhập)');
+    expect(problems({ ...valid, NODE_ENV: 'production', SMTP_URL: 'smtps://u:p@smtp.example.vn', TURNSTILE_SECRET_KEY: 'k' })).toEqual([]);
+  });
+
+  it('parses durations', () => {
+    expect(durationMs('15m')).toBe(900_000);
+    expect(durationMs('30d')).toBe(2_592_000_000);
+    expect(problems({ ...valid, JWT_ACCESS_TTL: '15 minutes' })[0]).toMatch(/^JWT_ACCESS_TTL:/);
   });
 
   it('splits CORS_ORIGINS', () => {

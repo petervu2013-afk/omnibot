@@ -1,6 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
+import { Public } from './common/public.decorator.js';
 
 /** GET /v1 – API index; lets clients check the version they talk to. */
+@Public()
 @Controller()
 export class MetaController {
   @Get()

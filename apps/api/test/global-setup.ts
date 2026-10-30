@@ -67,7 +67,7 @@ export default async function setup({ provide }: GlobalSetupContext) {
     redisUrl = fake.url;
     redisKind = 'fake';
     cleanups.push(fake.close);
-    console.warn('[e2e] REDIS_URL chưa đặt → dùng Redis giả lập (chỉ trả lời PING). CI chạy với Redis thật.');
+    console.warn('[e2e] REDIS_URL chưa đặt → dùng Redis giả lập trong bộ nhớ (test/support/fake-redis.ts). CI chạy với Redis thật.');
   }
 
   provide('DATABASE_URL', databaseUrl);

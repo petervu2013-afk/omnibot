@@ -3,6 +3,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { PrismaService } from '../core/prisma.service.js';
 import { RedisService } from '../core/redis.service.js';
+import { Public } from '../common/public.decorator.js';
 
 type Probe = 'ok' | 'down';
 const TIMEOUT_MS = 2000;
@@ -23,6 +24,7 @@ async function probe(check: () => Promise<void>): Promise<Probe> {
 }
 
 /** Liveness + readiness for Docker/nginx/uptime monitors. Not rate-limited, not under /v1. */
+@Public()
 @SkipThrottle()
 @Controller('health')
 export class HealthController {
