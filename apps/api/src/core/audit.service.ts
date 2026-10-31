@@ -8,6 +8,7 @@ export interface AuditEntry {
   shopId?: string | null;
   entityType?: string;
   entityId?: string;
+  before?: Prisma.InputJsonValue;
   data?: Prisma.InputJsonValue; // stored in AuditLog.after; never put passwords or tokens here
   ip?: string;
   userAgent?: string;
@@ -29,6 +30,7 @@ export class AuditService {
           shopId: entry.shopId ?? null,
           entityType: entry.entityType,
           entityId: entry.entityId,
+          before: entry.before,
           after: entry.data,
           ip: entry.ip,
           userAgent: entry.userAgent?.slice(0, 500),

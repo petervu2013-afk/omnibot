@@ -20,7 +20,20 @@ function render(subject: string, greeting: string, lines: string[], action?: { l
   return { subject, text, html };
 }
 
+const ROLE_LABEL: Record<string, string> = { ADMIN: 'Quản trị viên', MANAGER: 'Quản lý', SALE: 'Nhân viên bán hàng', WAREHOUSE: 'Thủ kho' };
+
 export const templates = {
+  invitation: (shopName: string, role: string, url: string) =>
+    render(
+      `Lời mời tham gia ${shopName} trên OmniBot`,
+      'Xin chào,',
+      [`Bạn được mời tham gia cửa hàng "${shopName}" trên OmniBot với vai trò ${ROLE_LABEL[role] ?? role}.`, 'Lời mời có hiệu lực trong 7 ngày và chỉ dùng được 1 lần.'],
+      {
+        label: 'Nhận lời mời',
+        url,
+      },
+    ),
+
   verifyEmail: (name: string, url: string) =>
     render(
       'Xác minh email đăng ký OmniBot',

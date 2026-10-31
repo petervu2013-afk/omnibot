@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: OmniBot API
-  version: 0.2.0
+  version: 0.3.0
   description: Hợp đồng API của backend NestJS. Được bổ sung theo từng bước trong docs/IMPLEMENTATION_PLAN.md (Bước 1 – /health, Bước 2 – /auth/*, ...).
 servers:
   - url: http://localhost:3000
@@ -252,7 +252,239 @@ paths:
               schema: { $ref: '#/components/schemas/Me' }
         '401': { $ref: '#/components/responses/Failure' }
         '409': { $ref: '#/components/responses/Failure' }
+  /v1/shops:
+    get:
+      summary: Các shop của tôi kèm vai trò (chuyển shop chỉ cần đổi shopId, không đăng nhập lại)
+      operationId: shopsList
+      responses:
+        '200': { description: OK }
+        '401': { $ref: '#/components/responses/Failure' }
+    post:
+      summary: Tạo thêm shop; người tạo là chủ shop và Admin
+      operationId: shopsCreate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                field: { type: string }
+                hotline: { type: string }
+      responses:
+        '201': { description: Đã tạo }
+        '400': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    get:
+      summary: Thông tin shop (quyền shop.view)
+      operationId: shopGet
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/Failure' }
+    patch:
+      summary: Sửa thông tin và cài đặt shop, gồm saleDataScope, assignMode (quyền shop.manage)
+      operationId: shopUpdate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: { type: string }
+                field: { type: [string, 'null'] }
+                hotline: { type: [string, 'null'] }
+                timezone: { type: string }
+                saleDataScope: { type: string, enum: [ALL, OWN, OWN_UNASSIGNED] }
+                assignMode: { type: string, enum: [MANUAL, FIRST_VIEW, ROUND_ROBIN_ONLINE, ROUND_ROBIN_ALL] }
+      responses:
+        '200': { description: OK }
+        '403': { $ref: '#/components/responses/Failure' }
+    delete:
+      summary: Xóa shop (chỉ chủ shop, xác nhận mật khẩu)
+      operationId: shopDelete
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordConfirm' }
+      responses:
+        '204': { description: Đã xóa }
+        '400': { $ref: '#/components/responses/Failure' }
+        '403': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/transfer-owner:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    post:
+      summary: Chuyển quyền chủ shop cho nhân viên đang hoạt động (chỉ chủ shop, xác nhận mật khẩu)
+      operationId: shopTransferOwner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [memberId, password]
+              properties:
+                memberId: { type: string }
+                password: { type: string }
+      responses:
+        '204': { description: Đã chuyển }
+        '400': { $ref: '#/components/responses/Failure' }
+        '403': { $ref: '#/components/responses/Failure' }
+        '404': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/members:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    get:
+      summary: Danh sách nhân viên (quyền staff.view)
+      operationId: membersList
+      responses:
+        '200': { description: OK }
+        '403': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/members/{memberId}:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+      - { name: memberId, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Đổi vai trò, tạm khóa/mở lại, chỉ tiêu (quyền staff.manage; có hiệu lực ngay)
+      description: OWNER_PROTECTED, CANNOT_EDIT_SELF (409).
+      operationId: memberUpdate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                role: { type: string, enum: [ADMIN, MANAGER, SALE, WAREHOUSE] }
+                status: { type: string, enum: [ACTIVE, DISABLED] }
+                receivesLeads: { type: boolean }
+                monthlyTarget: { type: [integer, 'null'] }
+      responses:
+        '200': { description: OK }
+        '403': { $ref: '#/components/responses/Failure' }
+        '404': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+    delete:
+      summary: Xóa nhân viên; khách, hội thoại, đơn của người đó về trạng thái chưa phân (quyền staff.manage)
+      operationId: memberRemove
+      responses:
+        '204': { description: Đã xóa }
+        '403': { $ref: '#/components/responses/Failure' }
+        '404': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/invitations:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    get:
+      summary: Lời mời đang chờ (quyền staff.view)
+      operationId: invitationsList
+      responses:
+        '200': { description: OK }
+        '403': { $ref: '#/components/responses/Failure' }
+    post:
+      summary: Mời nhân viên qua email, hiệu lực 7 ngày (quyền staff.manage)
+      operationId: invitationCreate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email }
+                role: { type: string, enum: [MANAGER, SALE, WAREHOUSE] }
+      responses:
+        '201': { description: Đã gửi }
+        '400': { $ref: '#/components/responses/Failure' }
+        '403': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/invitations/{invitationId}:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+      - { name: invitationId, in: path, required: true, schema: { type: string } }
+    delete:
+      summary: Hủy lời mời (quyền staff.manage)
+      operationId: invitationCancel
+      responses:
+        '204': { description: Đã hủy }
+        '403': { $ref: '#/components/responses/Failure' }
+        '404': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/audit-logs:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    get:
+      summary: Xem/lọc nhật ký thao tác, chỉ đọc (quyền audit.view)
+      operationId: auditLogsList
+      parameters:
+        - { name: action, in: query, schema: { type: string } }
+        - { name: actorId, in: query, schema: { type: string } }
+        - { name: entityType, in: query, schema: { type: string } }
+        - { name: entityId, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 'Gồm items và nextCursor' }
+        '403': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/audit-logs/export:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    get:
+      summary: Xuất CSV tối đa 10.000 dòng, cùng bộ lọc (quyền audit.export)
+      operationId: auditLogsExport
+      responses:
+        '200': { description: File CSV }
+        '403': { $ref: '#/components/responses/Failure' }
+  /v1/invitations/preview:
+    post:
+      summary: Xem lời mời từ liên kết trong email
+      operationId: invitationPreview
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TokenRequest' }
+      responses:
+        '200': { description: 'shopName, email, role, hasAccount' }
+        '400': { $ref: '#/components/responses/Failure' }
+  /v1/invitations/accept:
+    post:
+      summary: Nhận lời mời. Người mới gửi fullName + mật khẩu mới; tài khoản có sẵn gửi mật khẩu hiện tại
+      operationId: invitationAccept
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string }
+                fullName: { type: string }
+      responses:
+        '200': { description: Đã tham gia shop; đăng nhập để tiếp tục }
+        '400': { $ref: '#/components/responses/Failure' }
+        '401': { $ref: '#/components/responses/Failure' }
+        '423': { $ref: '#/components/responses/Failure' }
 components:
+  parameters:
+    ShopId:
+      name: shopId
+      in: path
+      required: true
+      schema: { type: string }
   securitySchemes:
     bearer:
       type: http
@@ -288,6 +520,11 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
           example: { error: { code: RATE_LIMITED, message: 'Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút.' }, requestId: 3f0c… }
   schemas:
+    PasswordConfirm:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string }
     RegisterRequest:
       type: object
       required: [fullName, email, password, shopName, acceptTerms]

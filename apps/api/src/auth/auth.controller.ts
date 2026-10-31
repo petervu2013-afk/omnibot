@@ -2,9 +2,9 @@
 // Web (platform WEB) receives the refresh token only as an HttpOnly cookie scoped to /v1/auth; mobile apps
 // (ANDROID/IOS) receive it in the body and keep it in Keychain/Keystore.
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Req, Res } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { apiError } from '../common/api-error.js';
+import { AuthThrottle } from '../common/auth-throttle.decorator.js';
 import { Public } from '../common/public.decorator.js';
 import { parse } from '../common/validation.js';
 import type { AuthContext, AuthedRequest } from './auth.guard.js';
@@ -14,9 +14,6 @@ import type { ClientPlatform } from '../generated/prisma/client.js';
 
 export const REFRESH_COOKIE = 'omnibot_rt';
 const COOKIE_PATH = '/v1/auth';
-
-// Stricter per-IP limit on credential endpoints (AUTH_RATE_LIMIT_PER_MINUTE, default 10/min per route).
-const AuthThrottle = () => Throttle({ default: { ttl: 60_000, limit: () => Number(process.env.AUTH_RATE_LIMIT_PER_MINUTE ?? 10) } });
 
 function meta(req: AuthedRequest): RequestMeta {
   return { ip: req.ip, userAgent: req.get('user-agent') ?? undefined };
