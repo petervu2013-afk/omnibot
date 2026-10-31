@@ -127,7 +127,7 @@ export class ShopController {
     return this.shops.listInvites(shopId);
   }
 
-  @Permission('staff.manage')
+  @Permission('staff.invite')
   @Audit('member.invite')
   @Post(':shopId/invitations')
   async invite(@Body() body: unknown, @Req() req: AuditedRequest) {
@@ -136,7 +136,7 @@ export class ShopController {
     return created;
   }
 
-  @Permission('staff.manage')
+  @Permission('staff.invite')
   @Audit('member.invite_cancel')
   @Delete(':shopId/invitations/:invitationId')
   @HttpCode(204)

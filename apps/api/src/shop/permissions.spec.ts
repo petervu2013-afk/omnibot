@@ -22,7 +22,7 @@ const ROWS: Record<string, { all: Permission[]; partial?: Partial<Record<Role, P
   'Thu chi, sổ quỹ': { all: ['finance.manage'] },
   'Quảng cáo, gửi tin hàng loạt': { all: ['marketing.manage'] },
   'Báo cáo': { all: ['report.view'], partial: { SALE: ['report.view'], WAREHOUSE: ['report.view'] } },
-  'Nhân viên, phân quyền, ca làm việc': { all: ['staff.view', 'shift.manage', 'staff.manage', 'shop.manage'], partial: { MANAGER: ['staff.view', 'shift.manage'] } },
+  'Nhân viên, phân quyền, ca làm việc': { all: ['staff.view', 'shift.manage', 'staff.invite', 'staff.manage', 'shop.manage'], partial: { MANAGER: ['staff.view', 'shift.manage', 'staff.invite'] } },
   'Kết nối kênh, tích hợp, thanh toán, gói phần mềm': { all: ['integration.manage'] },
   'Audit log': { all: ['audit.view', 'audit.export'], partial: { MANAGER: ['audit.view'] } },
   'Xóa shop, chuyển quyền chủ shop': { all: ['shop.owner'], partial: { ADMIN: ['shop.owner'] } }, // cell: ✔ (chủ shop); owner check is in PermissionGuard

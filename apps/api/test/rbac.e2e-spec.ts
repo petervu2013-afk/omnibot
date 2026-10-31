@@ -219,6 +219,18 @@ describe('RBAC', () => {
       expect((await api().post('/v1/invitations/accept').send({ token, password: PASSWORD, fullName: 'Thủ Kho' })).body.error.code).toBe('INVITE_INVALID');
     });
 
+    it('a Manager can invite and cancel, but cannot grant Admin or change members', async () => {
+      const manager = bearer(actors.manager.token);
+      const email = newEmail('qlmoi');
+      const inv = await api().post(`/v1/shops/${shopId}/invitations`).set(manager).send({ email, role: 'SALE' }).expect(201);
+      await api().post(`/v1/shops/${shopId}/invitations`).set(manager).send({ email, role: 'ADMIN' }).expect(400);
+      await api().patch(`/v1/shops/${shopId}/members/${actors.sale.memberId}`).set(manager).send({ role: 'ADMIN' }).expect(403);
+      await api().delete(`/v1/shops/${shopId}/invitations/${inv.body.id}`).set(manager).expect(204);
+      const logs = await api().get(`/v1/shops/${shopId}/audit-logs?action=member.invite&entityId=${inv.body.id}`).set(manager).expect(200);
+      expect(logs.body.items[0].actorId).toBe(actors.manager.userId);
+      await api().post(`/v1/shops/${shopId}/invitations`).set(bearer(actors.sale.token)).send({ email, role: 'SALE' }).expect(403);
+    });
+
     it('an existing account must confirm its password', async () => {
       const u = await register('cosan');
       await api().post(`/v1/shops/${shopId}/invitations`).set(bearer(actors.owner.token)).send({ email: u.email, role: 'SALE' }).expect(201);

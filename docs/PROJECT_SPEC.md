@@ -54,7 +54,7 @@
 | AUTH-04 | Access token + Refresh token | Access token JWT 15 phút; refresh token 30 ngày, **xoay vòng mỗi lần dùng**, lưu dạng băm; phát hiện dùng lại token cũ → thu hồi cả chuỗi phiên | P0 | W, M | ✅ (giao diện, giả lập) | 1 |
 | AUTH-05 | Quản lý & thu hồi phiên | Danh sách thiết bị đang đăng nhập (web/Android/iOS, IP, lần dùng cuối); đăng xuất 1 thiết bị / tất cả thiết bị; tự thu hồi khi đổi mật khẩu hoặc bị khóa | P0 | W, M | ✅ (giao diện, giả lập) | 1 |
 | AUTH-06 | Quên / đặt lại mật khẩu | Link đặt lại 30 phút, dùng 1 lần; đổi mật khẩu trong hồ sơ cá nhân | P0 | W, M | ✅ (giao diện, giả lập) | 1 |
-| AUTH-07 | Mời nhân viên | Admin/Manager mời qua email kèm vai trò; nhân viên tạo mật khẩu khi nhận lời mời; tạm khóa / mở lại / xóa nhân viên | P0 | W | ✅ một phần (Cài đặt → Nhân viên) | 1 |
+| AUTH-07 | Mời nhân viên | Admin/Manager mời qua email kèm vai trò (Manager, Sale, Thủ kho); nhân viên tạo mật khẩu khi nhận lời mời; chỉ Admin được tạm khóa / mở lại / xóa nhân viên | P0 | W | ✅ một phần (Cài đặt → Nhân viên) | 1 |
 | AUTH-08 | Phân quyền theo vai trò (RBAC) | 4 vai trò: **Admin, Manager, Sale, Thủ kho** – ma trận quyền ở mục 3 | P0 | W, M | ⬜ | 1 |
 | AUTH-09 | Phạm vi dữ liệu của Sale | Sale xem đơn/khách/hội thoại: tất cả · của mình · của mình + chưa có người phụ trách | P0 | W, M | ✅ (Cài đặt → Sale) | 1 |
 | AUTH-10 | Nhiều cửa hàng | Một tài khoản thuộc nhiều shop với vai trò khác nhau; chuyển shop không cần đăng nhập lại | P1 | W, M | ⬜ | 1 |
@@ -181,7 +181,7 @@
 | Thu chi, sổ quỹ | ✔ | ✔ | ✖ | ✖ |
 | Quảng cáo, gửi tin hàng loạt | ✔ | ✔ | ✖ | ✖ |
 | Báo cáo | ✔ | ✔ | Của mình | Kho hàng |
-| Nhân viên, phân quyền, ca làm việc | ✔ | Xem, xếp ca | ✖ | ✖ |
+| Nhân viên, phân quyền, ca làm việc | ✔ | Xem, xếp ca, mời nhân viên | ✖ | ✖ |
 | Kết nối kênh, tích hợp, thanh toán, gói phần mềm | ✔ | ✖ | ✖ | ✖ |
 | Audit log | ✔ | Xem | ✖ | ✖ |
 | Xóa shop, chuyển quyền chủ shop | ✔ (chủ shop) | ✖ | ✖ | ✖ |

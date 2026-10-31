@@ -28,6 +28,7 @@ export const PERMISSIONS = {
   'report.view': ALL,
   'staff.view': MANAGERS,
   'shift.manage': MANAGERS,
+  'staff.invite': MANAGERS,
   'staff.manage': ADMIN,
   'integration.manage': ADMIN,
   'audit.view': MANAGERS,

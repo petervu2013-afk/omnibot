@@ -389,7 +389,7 @@ paths:
         '200': { description: OK }
         '403': { $ref: '#/components/responses/Failure' }
     post:
-      summary: Mời nhân viên qua email, hiệu lực 7 ngày (quyền staff.manage)
+      summary: Mời nhân viên qua email, hiệu lực 7 ngày (quyền staff.invite: Admin, Manager)
       operationId: invitationCreate
       requestBody:
         required: true
@@ -411,7 +411,7 @@ paths:
       - { $ref: '#/components/parameters/ShopId' }
       - { name: invitationId, in: path, required: true, schema: { type: string } }
     delete:
-      summary: Hủy lời mời (quyền staff.manage)
+      summary: Hủy lời mời (quyền staff.invite: Admin, Manager)
       operationId: invitationCancel
       responses:
         '204': { description: Đã hủy }

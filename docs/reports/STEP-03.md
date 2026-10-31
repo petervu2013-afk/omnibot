@@ -4,7 +4,7 @@ Ngày: 31/10/2026 · Nhánh: `step-03-rbac` (tách từ `step-02-auth`) · Ngư�
 
 ## 1. Phạm vi
 **Đã làm** (AUTH-07 → 10, SET-03; hợp đồng API trong `docs/openapi.yaml`)
-- Ma trận quyền hồ sơ mục 3.2 thành bảng `permission → role` (`src/shop/permissions.ts`), 26 quyền.
+- Ma trận quyền hồ sơ mục 3.2 thành bảng `permission → role` (`src/shop/permissions.ts`), 27 quyền.
 - `@Permission('...')` + `PermissionGuard`: kiểm tra thành viên, vai trò và trạng thái ở **mỗi yêu cầu**, nên khóa nhân viên hay đổi vai trò có hiệu lực ngay. Người ngoài shop nhận 404 để không dò được mã shop.
 - Phạm vi dữ liệu của Sale (`dataScope`): tất cả / của mình / của mình + chưa phân.
 - Nhiều shop: một tài khoản có vai trò riêng ở từng shop; chuyển shop chỉ cần đổi `shopId`, không đăng nhập lại; tạo thêm shop.
@@ -16,7 +16,7 @@ Ngày: 31/10/2026 · Nhánh: `step-03-rbac` (tách từ `step-02-auth`) · Ngư�
 **Khác với kế hoạch / cần chủ dự án quyết định**
 | Vấn đề | Đang làm | Cần biết |
 |---|---|---|
-| Hồ sơ mâu thuẫn: AUTH-07 ghi "Admin/Manager mời nhân viên", ma trận 3.2 ghi Manager chỉ "Xem, xếp ca" | Theo ma trận: **chỉ Admin mời được** | Cần chủ dự án chốt; nếu Manager được mời, chỉ cần sửa 1 dòng và ma trận |
+| Hồ sơ từng mâu thuẫn giữa AUTH-07 và ma trận 3.2 về quyền mời | **Chủ dự án chốt: Manager cũng được mời** (quyền `staff.invite`), đã sửa ma trận | Manager mời và hủy lời mời được; đổi vai trò, khóa, xóa nhân viên vẫn chỉ Admin |
 | Lời mời không cấp thẳng vai trò Admin | Theo hồ sơ 3.1; muốn có Admin thì mời vai trò khác rồi đổi | |
 | Xuất audit log | Chỉ Admin (ô Manager là "Xem") | |
 | Ca làm việc (quyền `shift.manage`) | Đã có quyền, chưa có API | Bước 8 |
@@ -30,7 +30,7 @@ Ngày: 31/10/2026 · Nhánh: `step-03-rbac` (tách từ `step-02-auth`) · Ngư�
 | `pnpm check` (lint, format, typecheck, test, build) | ✔ |
 | `pnpm audit --prod --audit-level high` | ✔ |
 | Unit test | ✔ api 70/70 · web 18/18 |
-| E2E trên PostgreSQL 18 | ✔ 125 đạt, 1 bỏ qua (test dự phòng khi chưa build) – **Redis là bản giả lập** |
+| E2E trên PostgreSQL 18 | ✔ 126 đạt, 1 bỏ qua (test dự phòng khi chưa build) – **Redis là bản giả lập** |
 | Migration trên DB trắng | ✔ mỗi lần chạy e2e |
 
 **Đối chiếu checklist**
@@ -49,4 +49,4 @@ Ngày: 31/10/2026 · Nhánh: `step-03-rbac` (tách từ `step-02-auth`) · Ngư�
 Nghiêm trọng 0 · Cao 0 · Trung bình 0 · Thấp 0.
 
 ## 4. Người duyệt
-Người duyệt: ______ · Kết luận: **Phần code đạt cổng** (ma trận quyền 100% có test, không có lỗi truy cập chéo ở các API hiện có). Còn chờ người review và quyết định về quyền mời nhân viên của Manager.
+Người duyệt: ______ · Kết luận: **Phần code đạt cổng** (ma trận quyền 100% có test, không có lỗi truy cập chéo ở các API hiện có). Còn chờ người review.
