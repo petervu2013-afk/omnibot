@@ -10,7 +10,8 @@
 | 0 – Chuẩn bị dự án | 🟡 Phần code **đạt** (monorepo pnpm, CI, lint/format/typecheck/test/build, báo cáo `docs/reports/STEP-00.md`) | Chủ dự án: tạo repo GitHub + bảo vệ nhánh `main`, nộp hồ sơ tài khoản bên ngoài (`docs/EXTERNAL_ACCOUNTS.md`), duyệt & merge |
 | 0b – Giao diện mẫu di động | 🟡 Code **đạt** (typecheck, lint, chạy thử khung điện thoại 375 px và iPad 1024 px) | Chủ dự án xem demo và duyệt |
 | 1 – Hạ tầng backend | 🟡 Code **đạt** (lint, typecheck, 26 unit + 14 e2e trên PostgreSQL, migrate trên DB trắng; báo cáo `docs/reports/STEP-01.md`) | Staging HTTPS + CI chạy thật (cần VPS, repo GitHub từ Bước 0); build thử Docker |
-| 2 → 19 | ⬜ Chưa bắt đầu | Bước 2 – Xác thực |
+| 2 – Xác thực | 🟡 Code **đạt** (47 unit + 38 e2e, độ phủ auth 96,7%; báo cáo `docs/reports/STEP-02.md`) | Review 2 người, quét OWASP ZAP, chạy với Redis/SMTP/Turnstile thật; chọn nhà cung cấp email |
+| 3 → 19 | ⬜ Chưa bắt đầu | Bước 3 – Shop, nhân viên, phân quyền |
 
 ---
 
