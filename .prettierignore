@@ -13,3 +13,5 @@ expo-env.d.ts
 apps/mobile/assets
 apps/api/src/generated
 apps/api/prisma/migrations
+.outbox
+.pgdata
