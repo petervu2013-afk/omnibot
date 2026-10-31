@@ -50,3 +50,7 @@ Nghiêm trọng 0 · Cao 0 · Trung bình 0 · Thấp 0.
 
 ## 4. Người duyệt
 Người duyệt: ______ · Kết luận: **Phần code đạt cổng** (ma trận quyền 100% có test, không có lỗi truy cập chéo ở các API hiện có). Còn chờ người review.
+
+
+## Cập nhật 31/10/2026: CI thật
+GitHub Actions đã chạy xanh trên PR #1 (commit `4557690`), gồm job e2e với PostgreSQL 18 + **Redis 8 thật** và kiểm tra migration khớp schema. Lần chạy đầu lộ lỗi `test:e2e` thiếu `prisma generate` trên bản clone sạch, đã sửa. `docker compose` và staging HTTPS vẫn chưa kiểm tra.

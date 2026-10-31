@@ -72,3 +72,7 @@ Thêm `SMTP_URL`, `TURNSTILE_SECRET_KEY`, `APP_URL` (API từ chối khởi đ�
 
 ## 6. Người duyệt
 Người duyệt: ______ · Kết luận: **CHƯA ĐẠT CỔNG** – phần code đạt; còn thiếu review 2 người, quét OWASP ZAP, chạy với Redis thật (phụ thuộc GitHub + VPS của Bước 0).
+
+
+## Cập nhật 31/10/2026: CI thật
+GitHub Actions đã chạy xanh trên PR #1 (commit `4557690`), gồm job e2e với PostgreSQL 18 + **Redis 8 thật** và kiểm tra migration khớp schema. Lần chạy đầu lộ lỗi `test:e2e` thiếu `prisma generate` trên bản clone sạch, đã sửa. `docker compose` và staging HTTPS vẫn chưa kiểm tra.

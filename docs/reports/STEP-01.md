@@ -78,3 +78,7 @@ pnpm --filter @omnibot/api test:e2e
 
 ## 6. Người duyệt
 Người duyệt: ______ · Kết luận: **CHƯA ĐẠT CỔNG** – phần code đạt; còn thiếu staging HTTPS và CI chạy thật (phụ thuộc Bước 0: GitHub + VPS).
+
+
+## Cập nhật 31/10/2026: CI thật
+GitHub Actions đã chạy xanh trên PR #1 (commit `4557690`), gồm job e2e với PostgreSQL 18 + **Redis 8 thật** và kiểm tra migration khớp schema. Lần chạy đầu lộ lỗi `test:e2e` thiếu `prisma generate` trên bản clone sạch, đã sửa. `docker compose` và staging HTTPS vẫn chưa kiểm tra.
