@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    proxy: { '/api': 'http://localhost:8787' },
+    // Same origin in development, so the HttpOnly refresh cookie (SameSite=Strict) works as in production.
+    proxy: { '/api': 'http://localhost:8787', '/v1': process.env.API_PROXY ?? 'http://localhost:3000' },
   },
 });

@@ -1,14 +1,14 @@
 // /v1/auth/* – contract in docs/openapi.yaml.
 // Web (platform WEB) receives the refresh token only as an HttpOnly cookie scoped to /v1/auth; mobile apps
 // (ANDROID/IOS) receive it in the body and keep it in Keychain/Keystore.
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { apiError } from '../common/api-error.js';
 import { AuthThrottle } from '../common/auth-throttle.decorator.js';
 import { Public } from '../common/public.decorator.js';
 import { parse } from '../common/validation.js';
 import type { AuthContext, AuthedRequest } from './auth.guard.js';
-import { changePasswordSchema, emailSchema, loginSchema, passwordConfirmSchema, refreshSchema, registerSchema, resetPasswordSchema, tokenSchema } from './auth.schemas.js';
+import { changePasswordSchema, emailSchema, loginSchema, passwordConfirmSchema, profileSchema, refreshSchema, registerSchema, resetPasswordSchema, tokenSchema } from './auth.schemas.js';
 import { AuthService, type RequestMeta } from './auth.service.js';
 import type { ClientPlatform } from '../generated/prisma/client.js';
 
@@ -111,6 +111,23 @@ export class AuthController {
   @Get('me')
   me(@Req() req: AuthedRequest) {
     return this.auth.me(auth(req).userId);
+  }
+
+  @Patch('me')
+  updateProfile(@Body() body: unknown, @Req() req: AuthedRequest) {
+    return this.auth.updateProfile(auth(req).userId, parse(profileSchema, body));
+  }
+
+  @Get('login-history')
+  loginHistory(@Req() req: AuthedRequest) {
+    return this.auth.loginHistory(auth(req).userId);
+  }
+
+  @Post('logout-others')
+  @HttpCode(200)
+  logoutOthers(@Req() req: AuthedRequest) {
+    const { userId, familyId } = auth(req);
+    return this.auth.logoutOthers(userId, familyId, meta(req));
   }
 
   @Get('sessions')

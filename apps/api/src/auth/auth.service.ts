@@ -10,6 +10,7 @@ import { AuditService } from '../core/audit.service.js';
 import { PrismaService } from '../core/prisma.service.js';
 import type { TokenPurpose, User } from '../generated/prisma/client.js';
 import { MailService } from '../mail/mail.service.js';
+import { type Permission, PERMISSIONS, roleHas } from '../shop/permissions.js';
 import { templates } from '../mail/templates.js';
 import { AccessTokenService } from './access-token.service.js';
 import { CaptchaService } from './captcha.service.js';
@@ -81,10 +82,15 @@ export class AuthService {
   private async shopsOf(userId: string) {
     const members = await this.prisma.system.shopMember.findMany({
       where: { userId, status: 'ACTIVE', shop: { deletedAt: null } },
-      include: { shop: { select: { id: true, name: true, slug: true } } },
+      include: { shop: { select: { id: true, name: true, slug: true, ownerId: true } } },
       orderBy: { createdAt: 'asc' },
     });
-    return members.map((m) => ({ ...m.shop, role: m.role }));
+    return members.map(({ shop: { ownerId, ...shop }, role }) => {
+      const isOwner = ownerId === userId;
+      // Lets clients show the right menus; the API still checks every request.
+      const permissions = (Object.keys(PERMISSIONS) as Permission[]).filter((p) => roleHas(role, p) && (p !== 'shop.owner' || isOwner));
+      return { ...shop, role, isOwner, permissions };
+    });
   }
 
   async me(userId: string) {
@@ -250,6 +256,29 @@ export class AuthService {
   async revokeSession(userId: string, familyId: string, meta: RequestMeta) {
     if (!(await this.sessions.revokeFamily(familyId, 'revoked_by_user', userId))) throw apiError(404, 'SESSION_NOT_FOUND', 'Không tìm thấy phiên đăng nhập này.');
     await this.audit.log({ action: 'auth.session_revoked', actorId: userId, entityType: 'Session', entityId: familyId, ip: meta.ip, userAgent: meta.userAgent });
+  }
+
+  async logoutOthers(userId: string, familyId: string, meta: RequestMeta) {
+    const count = await this.sessions.revokeAll(userId, 'logout_all', familyId);
+    await this.audit.log({ action: 'auth.logout_others', actorId: userId, data: { sessions: count }, ip: meta.ip, userAgent: meta.userAgent });
+    return { revoked: count };
+  }
+
+  // ---------- profile & login history ----------
+
+  async updateProfile(userId: string, data: { fullName?: string; phone?: string | null }) {
+    await this.prisma.system.user.update({ where: { id: userId }, data });
+    return this.me(userId);
+  }
+
+  async loginHistory(userId: string) {
+    const rows = await this.prisma.system.auditLog.findMany({
+      where: { actorId: userId, action: { in: ['auth.register', 'auth.login', 'auth.login_failed'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      select: { id: true, action: true, ip: true, userAgent: true, createdAt: true },
+    });
+    return rows.map(({ action, ...r }) => ({ ...r, ok: action !== 'auth.login_failed', action }));
   }
 
   // ---------- AUTH-02 verify email ----------

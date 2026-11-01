@@ -31,6 +31,16 @@ export const loginSchema = z.object({
   deviceName,
 });
 
+export const profileSchema = z.strictObject({
+  fullName: z.string().trim().min(2, 'Nhập họ tên').max(100).optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^(\+?84|0)\d{9,10}$/, 'Số điện thoại không hợp lệ')
+    .nullable()
+    .optional(),
+});
+
 export const refreshSchema = z.object({ refreshToken: z.string().max(200).optional() });
 export const emailSchema = z.object({ email });
 export const tokenSchema = z.object({ token });
