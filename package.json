@@ -1,24 +1,32 @@
 {
   "name": "omnibot",
   "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "server": "node --env-file-if-exists=.env server/index.js",
-    "build": "vite build",
-    "preview": "vite preview"
+  "description": "OmniBot – Chatbot AI, Livechat đa kênh, CRM, Quảng cáo & POS",
+  "packageManager": "pnpm@10.18.3",
+  "engines": {
+    "node": ">=22"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^1.1.0",
-    "express": "^5.3.0",
-    "lucide-react": "^0.460.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "zod": "^4.6.7"
+  "scripts": {
+    "dev": "pnpm --filter @omnibot/web dev",
+    "dev:ai": "pnpm --filter @omnibot/ai-server start",
+    "build": "pnpm -r --if-present build",
+    "lint": "eslint . && pnpm --filter @omnibot/mobile lint",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^5.4.11"
-  }
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1"
+  },
+  "type": "module"
 }

@@ -1,13 +1,14 @@
 # HỒ SƠ DỰ ÁN OMNIBOT
 
 > **OmniBot – Chatbot AI, Livechat đa kênh, CRM, Quảng cáo & Bán hàng (POS)**
-> Phiên bản tài liệu: **2.0** · Ngày cập nhật: 23/10/2026
+> Phiên bản tài liệu: **2.1** · Ngày cập nhật: 24/10/2026
 > Nền tảng phát hành: **Website (trình duyệt)** · **Android (Google Play – CH Play)** · **iOS (Apple App Store)**
 
 | Phiên bản | Nội dung thay đổi |
 |---|---|
 | 1.0 | Hồ sơ ban đầu: chi tiết màn hình frontend, mô hình dữ liệu, kế hoạch 7 giai đoạn |
 | 2.0 | Đổi tên thành *Hồ sơ dự án OmniBot*. Bổ sung: đăng ký/đăng nhập, loại tài khoản & phân quyền (RBAC), bảo mật, ứng dụng Android/iOS và quy định của Google Play/App Store, hợp nhất hồ sơ khách (Identity Resolution), Zalo/TikTok Shop/Webchat WordPress, VietQR, Audit log. Chuẩn hóa thành 3 phần: **Danh mục tính năng – Database Schema (Prisma) – Roadmap theo Sprint** |
+| 2.1 | Bổ sung **giao diện mẫu ứng dụng di động** cho điện thoại và iPad/tablet (`apps/mobile`, Expo SDK 58 + Expo Router): 20 màn hình, bố cục điện thoại/tablet, định danh ứng dụng, quy cách ảnh chụp màn hình cho cửa hàng (mục 5.5); thêm MOB-08 (hỗ trợ tablet/iPad); monorepo pnpm + CI (Bước 0) |
 
 ---
 
@@ -28,10 +29,11 @@
 | **App Android & iOS** | Sale, Thủ kho, Manager khi đi lại | Livechat + thông báo đẩy, Việc cần làm/CRM, tạo & xem đơn, tra tồn kho, quét mã nhập/xuất kho, Dashboard rút gọn. **Không** có: cài đặt hệ thống, mua gói phần mềm, báo cáo chi tiết (mở trên web) |
 
 ### 1.3 Hiện trạng (tại ngày cập nhật)
-- **Frontend web**: đã có giao diện cho hầu hết tính năng (React 18 + Vite, thư mục `src/`), chạy bằng dữ liệu mẫu trong `localStorage`.
-- **Đã có giao diện (giả lập, chưa có backend)**: đăng ký, đăng nhập, quên/đặt lại mật khẩu, xác minh email, quản lý thiết bị đăng nhập, đổi mật khẩu, lịch sử đăng nhập, xóa tài khoản (`src/auth.jsx`, `src/pages/auth/`, Cài đặt → Tài khoản & bảo mật).
-- **Chưa có**: backend, phân quyền thật, ứng dụng di động, mọi kết nối thật tới Facebook/Zalo/TikTok/GHN/GHTK/ngân hàng.
-- Có server mẫu `server/index.js` (Express + Claude API) cho AI trả lời tự động, quét danh mục, phân tích quảng cáo – sẽ chuyển vào backend NestJS.
+- **Frontend web**: đã có giao diện cho hầu hết tính năng (React 18 + Vite, thư mục `apps/web/src/`), chạy bằng dữ liệu mẫu trong `localStorage`.
+- **Đã có giao diện (giả lập, chưa có backend)**: đăng ký, đăng nhập, quên/đặt lại mật khẩu, xác minh email, quản lý thiết bị đăng nhập, đổi mật khẩu, lịch sử đăng nhập, xóa tài khoản (`apps/web/src/auth.jsx`, `apps/web/src/pages/auth/`, Cài đặt → Tài khoản & bảo mật).
+- **Ứng dụng di động – giao diện mẫu (template)**: `apps/mobile` (Expo SDK 58, Expo Router, TypeScript) chạy được trên Android, iOS (điện thoại + iPad) và trình duyệt; dữ liệu mẫu trong bộ nhớ, chưa gọi API (chi tiết mục 5.5).
+- **Chưa có**: backend, phân quyền thật, kết nối API cho app di động, thông báo đẩy thật, camera quét mã thật, mọi kết nối thật tới Facebook/Zalo/TikTok/GHN/GHTK/ngân hàng.
+- Có server mẫu `apps/ai-server/index.js` (Express + Claude API) cho AI trả lời tự động, quét danh mục, phân tích quảng cáo – sẽ chuyển vào backend NestJS.
 
 ---
 
@@ -52,7 +54,7 @@
 | AUTH-04 | Access token + Refresh token | Access token JWT 15 phút; refresh token 30 ngày, **xoay vòng mỗi lần dùng**, lưu dạng băm; phát hiện dùng lại token cũ → thu hồi cả chuỗi phiên | P0 | W, M | ✅ (giao diện, giả lập) | 1 |
 | AUTH-05 | Quản lý & thu hồi phiên | Danh sách thiết bị đang đăng nhập (web/Android/iOS, IP, lần dùng cuối); đăng xuất 1 thiết bị / tất cả thiết bị; tự thu hồi khi đổi mật khẩu hoặc bị khóa | P0 | W, M | ✅ (giao diện, giả lập) | 1 |
 | AUTH-06 | Quên / đặt lại mật khẩu | Link đặt lại 30 phút, dùng 1 lần; đổi mật khẩu trong hồ sơ cá nhân | P0 | W, M | ✅ (giao diện, giả lập) | 1 |
-| AUTH-07 | Mời nhân viên | Admin/Manager mời qua email kèm vai trò; nhân viên tạo mật khẩu khi nhận lời mời; tạm khóa / mở lại / xóa nhân viên | P0 | W | ✅ một phần (Cài đặt → Nhân viên) | 1 |
+| AUTH-07 | Mời nhân viên | Admin/Manager mời qua email kèm vai trò (Manager, Sale, Thủ kho); nhân viên tạo mật khẩu khi nhận lời mời; chỉ Admin được tạm khóa / mở lại / xóa nhân viên | P0 | W | ✅ một phần (Cài đặt → Nhân viên) | 1 |
 | AUTH-08 | Phân quyền theo vai trò (RBAC) | 4 vai trò: **Admin, Manager, Sale, Thủ kho** – ma trận quyền ở mục 3 | P0 | W, M | ⬜ | 1 |
 | AUTH-09 | Phạm vi dữ liệu của Sale | Sale xem đơn/khách/hội thoại: tất cả · của mình · của mình + chưa có người phụ trách | P0 | W, M | ✅ (Cài đặt → Sale) | 1 |
 | AUTH-10 | Nhiều cửa hàng | Một tài khoản thuộc nhiều shop với vai trò khác nhau; chuyển shop không cần đăng nhập lại | P1 | W, M | ⬜ | 1 |
@@ -140,13 +142,16 @@
 ### 📱 Phân hệ 6 – Ứng dụng di động & phát hành (Android / iOS)
 | Mã | Tính năng | Mô tả chi tiết | Ưu tiên | Giao diện | Sprint |
 |---|---|---|---|---|---|
-| MOB-01 | Khung ứng dụng | React Native (Expo) dùng chung API; đăng nhập, chọn shop, chế độ tối | P0 | ⬜ | 5 |
-| MOB-02 | Livechat di động | Danh sách & khung chat, trả lời nhanh, gửi ảnh, bật/tắt AI | P0 | ⬜ | 5 |
-| MOB-03 | Thông báo đẩy | Tin nhắn mới, lead mới được giao, việc đến hạn, đơn mới (FCM cho Android, APNs cho iOS); xin quyền thông báo; tùy chỉnh loại thông báo | P0 | ⬜ | 5 |
-| MOB-04 | CRM & việc cần làm | Việc hôm nay/quá hạn, ghi nhận cuộc gọi (bấm gọi bằng máy), hồ sơ khách | P0 | ⬜ | 5 |
-| MOB-05 | Đơn hàng & kho | Tạo/xem đơn, tra tồn, quét mã vạch phiếu nhập/xuất/kiểm kho bằng camera | P1 | ⬜ | 5 |
-| MOB-06 | Dashboard rút gọn | KPI chính, cảnh báo sớm | P1 | ⬜ | 5 |
-| MOB-07 | Tuân thủ kho ứng dụng | Xóa tài khoản trong app, chính sách quyền riêng tư, khai báo dữ liệu, tài khoản demo cho người duyệt… (chi tiết mục 5) | P0 | ⬜ | 5 |
+| MOB-01 | Khung ứng dụng | React Native (Expo) dùng chung API; đăng nhập, đăng ký, quên mật khẩu, chọn shop | P0 | 🟡 mẫu | 5 |
+| MOB-02 | Livechat di động | Danh sách & khung chat, trả lời nhanh (`/chao`, `/ship`…), gửi ảnh, bật/tắt AI, xem lý do AI chuyển nhân viên | P0 | 🟡 mẫu | 5 |
+| MOB-03 | Thông báo đẩy | Tin nhắn mới, lead mới được giao, việc đến hạn, đơn mới, tồn kho (FCM cho Android, APNs cho iOS); xin quyền sau đăng nhập; bật/tắt từng loại | P0 | 🟡 mẫu (danh sách + cài đặt) | 5 |
+| MOB-04 | CRM & việc cần làm | Việc quá hạn / 24 giờ / sắp tới, bấm gọi bằng máy, ghi kết quả "Gọi được / Không nghe" (tự hẹn gọi lại sau 4 giờ), hồ sơ khách & lịch sử tương tác | P0 | 🟡 mẫu | 5 |
+| MOB-05 | Đơn hàng & kho | Tạo/xem đơn, chuyển trạng thái, tra tồn theo kho, quét mã vạch phiếu nhập/xuất/kiểm kho bằng camera | P1 | 🟡 mẫu (camera là khung giả lập) | 5 |
+| MOB-06 | Dashboard rút gọn | Doanh thu so với mục tiêu, KPI chính, cảnh báo sớm, việc hôm nay | P1 | 🟡 mẫu | 5 |
+| MOB-07 | Tuân thủ kho ứng dụng | Xóa tài khoản trong app, chính sách quyền riêng tư, khai báo dữ liệu, tài khoản demo cho người duyệt… (chi tiết mục 5) | P0 | 🟡 mẫu (xóa tài khoản, điều khoản) | 5 |
+| MOB-08 | Hỗ trợ tablet / iPad | Từ chiều rộng ≥ 768 px: thanh điều hướng bên trái, chia đôi màn hình (danh sách + chi tiết) cho Hội thoại và Đơn hàng, lưới 2 cột; hỗ trợ xoay ngang/dọc và Split View trên iPad | P0 (vì `supportsTablet: true`) | 🟡 mẫu | 5 |
+
+> 🟡 mẫu = đã có giao diện mẫu trong `apps/mobile` chạy bằng dữ liệu giả lập; còn phải nối API ở Bước 17.
 
 ---
 
@@ -176,7 +181,7 @@
 | Thu chi, sổ quỹ | ✔ | ✔ | ✖ | ✖ |
 | Quảng cáo, gửi tin hàng loạt | ✔ | ✔ | ✖ | ✖ |
 | Báo cáo | ✔ | ✔ | Của mình | Kho hàng |
-| Nhân viên, phân quyền, ca làm việc | ✔ | Xem, xếp ca | ✖ | ✖ |
+| Nhân viên, phân quyền, ca làm việc | ✔ | Xem, xếp ca, mời nhân viên | ✖ | ✖ |
 | Kết nối kênh, tích hợp, thanh toán, gói phần mềm | ✔ | ✖ | ✖ | ✖ |
 | Audit log | ✔ | Xem | ✖ | ✖ |
 | Xóa shop, chuyển quyền chủ shop | ✔ (chủ shop) | ✖ | ✖ | ✖ |
@@ -240,6 +245,54 @@ Quyền được kiểm tra ở **backend** (Role Guard + kiểm tra phạm vi d
 3. Chuẩn bị trang cửa hàng: tên, mô tả tiếng Việt/Anh, ảnh chụp màn hình, biểu tượng, link chính sách, tài khoản demo.
 4. Nộp duyệt; dự phòng 1–2 vòng bị từ chối để sửa.
 
+### 5.5 Giao diện mẫu ứng dụng di động (điện thoại & iPad)
+
+**Vị trí & cách chạy**: `apps/mobile` · `pnpm --filter @omnibot/mobile start` (quét QR bằng Expo Go hoặc bản development build) · `pnpm --filter @omnibot/mobile web` để xem nhanh trên trình duyệt (cổng 8081). Tài khoản demo: `admin@goviet.vn` / `Demo@1234`.
+
+**Định danh ứng dụng (`app.json`)**
+| Thuộc tính | Giá trị | Ghi chú |
+|---|---|---|
+| Tên hiển thị | OmniBot | |
+| iOS `bundleIdentifier` / Android `package` | `vn.omnibot.app` | **Tạm** – chốt theo tên miền công ty trước lần build đầu, sau khi nộp không đổi được |
+| `ios.supportsTablet` | `true` | Có giao diện iPad riêng ⇒ Apple bắt buộc nộp ảnh chụp iPad 13" |
+| `orientation` | `default` (xoay được) | iPad bắt buộc hỗ trợ đủ hướng để dùng Split View/Slide Over |
+| `ITSAppUsesNonExemptEncryption` | `false` | Chỉ dùng HTTPS chuẩn ⇒ không cần hồ sơ mã hóa xuất khẩu |
+| `scheme` | `omnibot://` | Deep link từ thông báo đẩy tới đúng hội thoại / đơn |
+| `version` / `buildNumber` / `versionCode` | 1.0.0 / 1 / 1 | Tăng mỗi lần nộp; dùng EAS `autoIncrement` |
+
+**Danh sách màn hình mẫu (20)**
+| Nhóm | Màn hình (route) | Nội dung |
+|---|---|---|
+| Xác thực | `/login`, `/register`, `/forgot` | Đăng nhập (khóa sau 5 lần sai), đăng ký kèm đồng ý điều khoản, quên mật khẩu |
+| Tổng quan | `/home` | Doanh thu 7 ngày vs mục tiêu, tin chưa đọc, việc quá hạn, cảnh báo sớm, việc hôm nay, chuông thông báo |
+| Hội thoại | `/chats`, `/chats/[id]` | Lọc Tất cả/Chưa đọc/Cần NV, tìm khách; khung chat có thẻ sản phẩm AI gửi, bật/tắt AI, gọi khách, tin mẫu |
+| Việc cần làm | `/tasks`, `/tasks/customer/[id]` | Nhóm Quá hạn/24 giờ/Sắp tới; Gọi – Gọi được – Không nghe – Đã nhắn; hồ sơ khách 360° |
+| Đơn hàng | `/orders`, `/orders/[id]`, `/orders/new` | Lọc Cần xử lý/Đang giao/Đã đóng; chi tiết & chuyển trạng thái; tạo đơn chọn khách + sản phẩm theo tồn |
+| Thêm | `/more`, `/more/inventory`, `/more/scan`, `/more/notifications`, `/more/account`, `/more/delete-account` | Kho & tồn, quét mã (khung camera giả lập), thông báo + bật/tắt loại đẩy, hồ sơ, Face ID/vân tay, thiết bị đăng nhập, đổi mật khẩu, xóa tài khoản (mật khẩu + gõ "XOA") |
+| Pháp lý | `/legal` | Tóm tắt điều khoản & chính sách quyền riêng tư – mở được cả khi chưa đăng nhập |
+
+**Quy tắc bố cục điện thoại / tablet** (`src/lib/layout.ts`, ngưỡng `TABLET_MIN_WIDTH = 768`)
+| | Điện thoại (< 768 px) | Tablet / iPad (≥ 768 px) |
+|---|---|---|
+| Điều hướng | Thanh tab dưới 5 mục, có huy hiệu số, chừa vùng an toàn (tai thỏ, thanh home) | Thanh bên trái 200 px có logo |
+| Hội thoại, Đơn hàng | Danh sách → mở trang chi tiết riêng | Chia đôi: danh sách (360–380 px) + chi tiết bên phải |
+| Việc cần làm, Kho | 1 cột | Lưới 2 cột |
+| Đăng nhập/đăng ký | Toàn màn hình | Thẻ giữa màn hình, rộng tối đa 460 px |
+| Vùng chạm | Tối thiểu 44 × 44 pt (Apple HIG) / 48 dp (Material) cho nút chính | như điện thoại |
+
+**Ảnh chụp màn hình cho cửa hàng** (chụp từ màn hình mẫu với dữ liệu demo)
+| Cửa hàng | Kích thước bắt buộc | Số lượng |
+|---|---|---|
+| App Store – iPhone 6.9" | 1320 × 2868 (hoặc 1290 × 2796) | 3–10 ảnh |
+| App Store – iPad 13" (bắt buộc vì `supportsTablet`) | 2064 × 2752 (hoặc 2048 × 2732) | 3–10 ảnh |
+| Google Play – điện thoại | Tỉ lệ 9:16, cạnh 1080–3840 px | 2–8 ảnh (khuyến nghị ≥ 4) |
+| Google Play – tablet 7" & 10" | Tỉ lệ 16:9 hoặc 9:16, cạnh ≥ 1080 px | Khuyến nghị để app được đề xuất trên tablet |
+| Google Play – ảnh nổi bật | 1024 × 500 | 1 |
+
+Bộ ảnh đề xuất: Tổng quan · Hội thoại có AI trả lời kèm thẻ sản phẩm · Việc cần làm · Tạo đơn · Tra tồn kho · Thông báo.
+
+**Phần còn thiếu, làm ở Bước 17–18**: nối API thật thay `src/data/mock.ts`, lưu token bằng `expo-secure-store`, sinh trắc học `expo-local-authentication`, thông báo đẩy `expo-notifications`, camera `expo-camera` (thêm chuỗi xin quyền `NSCameraUsageDescription`), biểu tượng & màn hình chờ theo thương hiệu, `PrivacyInfo.xcprivacy`, cấu hình EAS Build/Submit, chế độ tối.
+
 ---
 
 ## 6. Kiến trúc kỹ thuật
@@ -249,9 +302,10 @@ Quyền được kiểm tra ở **backend** (Role Guard + kiểm tra phạm vi d
 | Backend API | **NestJS** (TypeScript), REST + **Socket.io** (Livechat, Dashboard realtime) |
 | Database | **PostgreSQL** qua **Prisma ORM** (schema mục 7) |
 | Cache & hàng đợi | **Redis** + BullMQ: gửi tin hàng loạt có giãn cách, đồng bộ quảng cáo, nhắc việc, trigger, AI trả lời theo hàng đợi từng hội thoại |
-| AI | Dịch vụ AI dùng Claude API (chuyển từ `server/index.js`), ghi credit theo token |
+| AI | Dịch vụ AI dùng Claude API (chuyển từ `apps/ai-server/index.js`), ghi credit theo token |
 | Web | React 18 + Vite (frontend hiện tại) – thay `localStorage` bằng gọi API |
-| Mobile | React Native (Expo), dùng chung API & kiểu dữ liệu |
+| Mobile | React Native qua **Expo SDK 58** + **Expo Router** (TypeScript, React Compiler), thư mục `apps/mobile`; dùng chung API & kiểu dữ liệu (`packages/shared`); build/nộp bằng **EAS Build / EAS Submit**, cập nhật nhanh bằng EAS Update |
+| Monorepo & CI | pnpm workspace (`apps/*`, `packages/*`), ESLint + Prettier + Vitest, GitHub Actions chạy lint → format → typecheck → test → build |
 | Webchat | Plugin WordPress/WooCommerce + widget JS kết nối Socket.io |
 | Lưu file | S3-compatible (ảnh sản phẩm, đính kèm chat) |
 | Triển khai | Docker Compose trên VPS (giai đoạn đầu): `api`, `worker`, `postgres`, `redis`, `nginx`; staging + production; Sentry theo dõi lỗi; sao lưu DB hằng ngày |
@@ -1281,11 +1335,23 @@ Mỗi báo cáo: chọn kỳ (7/14/28 ngày), lọc page/kho, **Export** CSV. �
 ## Phụ lục B. Danh sách file frontend chính
 | File | Nội dung |
 |---|---|
-| `src/App.jsx` | Menu & định tuyến |
-| `src/store.jsx`, `src/seedCrm.js`, `src/seedOps.js` | Dữ liệu & dữ liệu mẫu (thay bằng API khi có backend) |
-| `src/ai.js`, `src/autoReply.js`, `server/index.js` | AI trả lời tự động |
-| `src/crm.js` | Logic CRM, cảnh báo, năng suất |
-| `src/analytics.js` | Chỉ số quảng cáo, AI, tệp khách |
-| `src/ops.js` | Logic kho, thu chi |
-| `src/components/kit.jsx` | Bảng dữ liệu, thanh bên, form dùng chung |
-| `src/pages/*` | Từng màn hình (Home, Ads, Livechat, Crm, Orders + `pos/`, Reports + `reports/`, Settings + `settings/`) |
+| `apps/web/src/App.jsx` | Menu & định tuyến |
+| `apps/web/src/store.jsx`, `apps/web/src/seedCrm.js`, `apps/web/src/seedOps.js` | Dữ liệu & dữ liệu mẫu (thay bằng API khi có backend) |
+| `apps/web/src/ai.js`, `apps/web/src/autoReply.js`, `apps/ai-server/index.js` | AI trả lời tự động |
+| `apps/web/src/crm.js` | Logic CRM, cảnh báo, năng suất |
+| `apps/web/src/analytics.js` | Chỉ số quảng cáo, AI, tệp khách |
+| `apps/web/src/ops.js` | Logic kho, thu chi |
+| `apps/web/src/components/kit.jsx` | Bảng dữ liệu, thanh bên, form dùng chung |
+| `apps/web/src/pages/*` | Từng màn hình (Home, Ads, Livechat, Crm, Orders + `pos/`, Reports + `reports/`, Settings + `settings/`) |
+
+## Phụ lục C. Danh sách file ứng dụng di động (`apps/mobile`)
+| File | Nội dung |
+|---|---|
+| `app.json` | Tên, định danh `vn.omnibot.app`, hỗ trợ iPad, hướng màn hình, scheme |
+| `src/theme.ts` | Màu, khoảng cách, cỡ chữ, ngưỡng tablet, định dạng tiền/thời gian |
+| `src/lib/store.tsx` | Trạng thái ứng dụng giả lập (phiên đăng nhập, hội thoại, việc, đơn, thông báo, thiết bị) – thay bằng gọi API ở Bước 17 |
+| `src/lib/layout.ts`, `src/lib/time.ts` | Phát hiện điện thoại/tablet; giờ hiện tại tự cập nhật mỗi phút |
+| `src/data/mock.ts` | Kiểu dữ liệu & dữ liệu mẫu |
+| `src/components/ui.tsx` | Bộ thành phần dùng chung: Screen, Header, Card, Button, Field, Badge, ListRow, Section, Segmented… |
+| `src/components/chat-thread.tsx`, `order-detail.tsx`, `auth-shell.tsx` | Khung chat, chi tiết đơn, khung trang xác thực (dùng chung cho điện thoại và tablet) |
+| `src/app/(auth)/*`, `src/app/(app)/*`, `src/app/legal.tsx` | Các màn hình theo route (mục 5.5) |

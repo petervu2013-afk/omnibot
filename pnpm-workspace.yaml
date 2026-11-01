@@ -1,0 +1,21 @@
+packages:
+  - apps/*
+  - packages/*
+
+# pnpm 10 blocks dependency install scripts by default; allow only the ones we need.
+onlyBuiltDependencies:
+  - esbuild
+  - '@embedded-postgres/windows-x64'
+  - '@prisma/engines'
+  - '@swc/core'
+  - prisma
+
+# Advisories accepted after review (re-check on every Expo SDK upgrade, next review 2027-01-31):
+#   GHSA-mrhx-c7xc-m3w5 zod <4.6.6 – only via expo > @expo/cli (pinned to zod 3); the API uses zod 4.6.7.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-mrhx-c7xc-m3w5
+
+# Security fix inside expo > @expo/cli until Expo ships it (same major, checked with `expo config`).
+overrides:
+  node-forge: ^1.4.1

@@ -1,0 +1,5 @@
+dist/
+.env
+.pgdata/
+src/generated/
+.outbox/

@@ -1,0 +1,761 @@
+// OmniBot database schema. Source of truth for the model list: docs/PROJECT_SPEC.md section 7.
+// Every business table carries shopId; the API enforces it at query level (src/prisma/tenant-guard.ts).
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────── Phân hệ 1: Xác thực & Phân quyền ─────────────
+enum Role {
+  ADMIN
+  MANAGER
+  SALE
+  WAREHOUSE
+}
+enum UserStatus {
+  ACTIVE
+  LOCKED
+  PENDING_DELETION
+  DELETED
+}
+enum MemberStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+enum ClientPlatform {
+  WEB
+  ANDROID
+  IOS
+}
+enum TokenPurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+enum DataScope {
+  ALL
+  OWN
+  OWN_UNASSIGNED
+}
+enum AssignMode {
+  MANUAL
+  FIRST_VIEW
+  ROUND_ROBIN_ONLINE
+  ROUND_ROBIN_ALL
+}
+
+model User {
+  id               String     @id @default(cuid())
+  email            String     @unique
+  passwordHash     String
+  fullName         String
+  phone            String?
+  avatarUrl        String?
+  status           UserStatus @default(ACTIVE)
+  emailVerifiedAt  DateTime?
+  twoFactorEnabled Boolean    @default(false)
+  twoFactorSecretEnc String?
+  failedLoginCount Int        @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  isPlatformAdmin  Boolean    @default(false)
+  deletionRequestedAt DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  memberships      ShopMember[]
+  sessions         Session[]
+  tokens           VerificationToken[]
+}
+
+model Shop {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  field      String?
+  hotline    String?
+  timezone   String   @default("Asia/Ho_Chi_Minh")
+  currency   String   @default("VND")
+  ownerId    String
+  settings   Json     @default("{}")   // lịch làm việc, phí ship, tồn kho, tích điểm, KPI, quy trình CRM
+  saleDataScope DataScope @default(OWN_UNASSIGNED)
+  assignMode AssignMode @default(ROUND_ROBIN_ONLINE)
+  createdAt  DateTime @default(now())
+  deletedAt  DateTime?
+  members    ShopMember[]
+  subscription Subscription?
+}
+
+model ShopMember {
+  id            String       @id @default(cuid())
+  shopId        String
+  userId        String
+  role          Role
+  status        MemberStatus @default(INVITED)
+  monthlyTarget Decimal?     @db.Decimal(14, 0)
+  receivesLeads Boolean      @default(true)
+  isOnline      Boolean      @default(false)
+  lastAssignedAt DateTime?   // phục vụ chia xoay vòng
+  createdAt     DateTime     @default(now())
+  shop          Shop         @relation(fields: [shopId], references: [id])
+  user          User         @relation(fields: [userId], references: [id])
+  shifts        WorkShift[]
+  @@unique([shopId, userId])
+}
+
+model Invitation {
+  id          String   @id @default(cuid())
+  shopId      String
+  email       String
+  role        Role
+  tokenHash   String   @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model Session {
+  id               String         @id @default(cuid())
+  userId           String
+  familyId         String         // chuỗi xoay vòng refresh token
+  refreshTokenHash String         @unique
+  platform         ClientPlatform
+  deviceName       String?
+  ip               String?
+  userAgent        String?
+  pushToken        String?        // FCM / APNs
+  lastUsedAt       DateTime       @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  revokeReason     String?
+  createdAt        DateTime       @default(now())
+  user             User           @relation(fields: [userId], references: [id])
+  @@index([userId, revokedAt])
+  @@index([familyId])
+}
+
+model VerificationToken {
+  id        String       @id @default(cuid())
+  userId    String
+  purpose   TokenPurpose
+  tokenHash String       @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User         @relation(fields: [userId], references: [id])
+}
+
+model WorkShift {
+  id        String     @id @default(cuid())
+  memberId  String
+  dayOfWeek Int        // 0 = CN … 6 = T7
+  startTime String     // "08:00"
+  endTime   String     // "17:30"
+  member    ShopMember @relation(fields: [memberId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  shopId     String?
+  actorId    String?            // User; null = hệ thống
+  action     String             // vd: auth.login, order.cancel, customer.merge, settings.update
+  entityType String?
+  entityId   String?
+  before     Json?
+  after      Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  @@index([shopId, createdAt])
+  @@index([entityType, entityId])
+}
+
+// ───────────── Phân hệ 4: Kênh, Hội thoại, Hồ sơ khách, CRM ─────────────
+enum ChannelPlatform {
+  FACEBOOK
+  INSTAGRAM
+  ZALO_OA
+  TIKTOK_SHOP
+  WEBCHAT
+}
+enum ChannelStatus {
+  CONNECTED
+  TOKEN_EXPIRED
+  DISCONNECTED
+}
+enum Stage {
+  NEW
+  CONTACTING
+  CONSULTING
+  QUOTED
+  WON
+  NURTURING
+  LOST
+}
+enum Sender {
+  CUSTOMER
+  AI
+  BOT
+  AGENT
+  SYSTEM
+}
+
+model Channel {
+  id             String          @id @default(cuid())
+  shopId         String
+  platform       ChannelPlatform
+  externalId     String          // page_id, oa_id, shop_id TikTok, site_id webchat
+  name           String
+  accessTokenEnc String?
+  refreshTokenEnc String?
+  tokenExpiresAt DateTime?
+  status         ChannelStatus   @default(CONNECTED)
+  botConfig      Json            @default("{}")  // chế độ AI/kịch bản, lời chào, ngoài giờ
+  createdAt      DateTime        @default(now())
+  @@unique([platform, externalId])
+}
+
+model Customer {
+  id              String   @id @default(cuid())
+  shopId          String
+  name            String
+  phone           String?
+  phoneNormalized String?            // +84xxxxxxxxx
+  email           String?
+  emailNormalized String?
+  address         String?
+  tags            String[]
+  stage           Stage    @default(NEW)
+  ownerId         String?            // ShopMember
+  campaignId      String?            // nguồn quảng cáo
+  ref             String?
+  src             String?
+  interestProductId String?
+  expectedValue   Decimal? @db.Decimal(14, 0)
+  nurtureReason   String?
+  nextNurtureAt   DateTime?
+  lostReason      String?
+  marketingOptOut Boolean  @default(false)
+  firstSeenAt     DateTime @default(now())
+  phoneAt         DateTime?
+  stageChangedAt  DateTime @default(now())
+  mergedIntoId    String?            // khi bị gộp vào hồ sơ khác
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  identities      CustomerIdentity[]
+  @@index([shopId, phoneNormalized])
+  @@index([shopId, emailNormalized])
+  @@index([shopId, stage, ownerId])
+}
+
+// Mỗi danh tính trên một kênh (PSID Facebook, user_id Zalo, buyer TikTok, visitor webchat)
+model CustomerIdentity {
+  id             String   @id @default(cuid())
+  shopId         String
+  customerId     String
+  channelId      String
+  externalUserId String
+  displayName    String?
+  avatarUrl      String?
+  createdAt      DateTime @default(now())
+  customer       Customer @relation(fields: [customerId], references: [id])
+  @@unique([channelId, externalUserId])
+}
+
+model CustomerMergeLog {
+  id          String   @id @default(cuid())
+  shopId      String
+  fromId      String
+  intoId      String
+  matchedBy   String   // phone | email | manual
+  auto        Boolean
+  actorId     String?
+  createdAt   DateTime @default(now())
+}
+
+model ConsentRecord {
+  id         String   @id @default(cuid())
+  shopId     String
+  customerId String
+  purpose    String   // chăm sóc, quảng cáo, ZNS…
+  source     String   // chat, form webchat, đơn hàng
+  grantedAt  DateTime @default(now())
+  revokedAt  DateTime?
+}
+
+model Conversation {
+  id            String   @id @default(cuid())
+  shopId        String
+  channelId     String
+  customerId    String
+  identityId    String
+  assigneeId    String?            // ShopMember
+  botActive     Boolean  @default(true)
+  handoff       Boolean  @default(false)
+  handoffReason String?
+  status        String   @default("open")
+  unreadCount   Int      @default(0)
+  campaignId    String?
+  lastCustomerMessageAt DateTime?  // dùng cho khung 24h Messenger
+  lastMessageAt DateTime?
+  createdAt     DateTime @default(now())
+  messages      Message[]
+  @@index([shopId, lastMessageAt])
+  @@index([assigneeId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  sender         Sender
+  senderMemberId String?
+  text           String?
+  attachments    Json?
+  productIds     String[]
+  intent         String?
+  aiEngine       String?            // claude | rules
+  aiLatencyMs    Int?
+  aiCostUsd      Decimal? @db.Decimal(10, 6)
+  externalId     String?  @unique   // mid của nền tảng – chống trùng webhook
+  createdAt      DateTime @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  @@index([conversationId, createdAt])
+}
+
+model QuickReply {
+  id          String   @id @default(cuid())
+  shopId      String
+  shortcut    String
+  name        String?
+  content     String
+  mediaUrl    String?
+  channelIds  String[]
+  createdById String
+  @@unique([shopId, shortcut])
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  shopId     String
+  customerId String
+  memberId   String?
+  type       String   // call, message, note, quote, meeting, care, stage, assign, broadcast
+  outcome    String?
+  durationSec Int?
+  text       String?
+  createdAt  DateTime @default(now())
+  @@index([customerId, createdAt])
+}
+
+model Task {
+  id         String   @id @default(cuid())
+  shopId     String
+  customerId String
+  memberId   String
+  type       String   // call | message
+  kind       String   // cadence, retry, nurture, care, manual, upsell, reactivate
+  title      String
+  dueAt      DateTime
+  doneAt     DateTime?
+  cancelled  Boolean  @default(false)
+  outcome    String?
+  @@index([memberId, doneAt, dueAt])
+}
+
+model Trigger {
+  id      String  @id @default(cuid())
+  shopId  String
+  type    String  // order | payment | shipping
+  event   String
+  action  String  // send_message | add_tag | notify | create_task
+  payload Json
+  active  Boolean @default(true)
+}
+
+// ───────────── Phân hệ 3: Sản phẩm, Kho, Đơn, Vận chuyển, Thanh toán, Thu chi ─────────────
+enum StockDocKind {
+  IMPORT
+  EXPORT
+  TRANSFER
+  CHECK
+}
+enum DocStatus {
+  DRAFT
+  DONE
+  CANCELLED
+}
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  SHIPPING
+  DONE
+  CANCELLED
+  RETURNED
+}
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+}
+enum PaymentMethod {
+  COD
+  BANK
+  VIETQR
+  CASH
+  CARD
+}
+enum Carrier {
+  GHN
+  GHTK
+  VIETTEL_POST
+  SELF
+}
+enum ShipmentStatus {
+  WAITING
+  IN_TRANSIT
+  DELIVERED
+  RETURNING
+  RETURNED
+  CANCELLED
+}
+
+model Category {
+  id          String @id @default(cuid())
+  shopId      String
+  name        String
+  description String?
+  active      Boolean @default(true)
+}
+model Product {
+  id          String   @id @default(cuid())
+  shopId      String
+  sku         String
+  name        String
+  categoryId  String?
+  price       Decimal  @db.Decimal(14, 0)
+  costPrice   Decimal? @db.Decimal(14, 0)
+  description String?            // AI dùng để tư vấn
+  images      String[]
+  barcode     String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  @@unique([shopId, sku])
+}
+
+model Combo {
+  id          String @id @default(cuid())
+  shopId      String
+  name        String
+  price       Decimal @db.Decimal(14, 0)
+  active      Boolean @default(true)
+  items       ComboItem[]
+}
+model ComboItem {
+  id          String @id @default(cuid())
+  comboId     String
+  productId   String
+  qty         Int
+  combo       Combo @relation(fields: [comboId], references: [id])
+}
+model Coupon {
+  id       String   @id @default(cuid())
+  shopId   String
+  code     String
+  type     String   // percent | amount
+  value    Decimal  @db.Decimal(14, 0)
+  minOrder Decimal  @db.Decimal(14, 0) @default(0)
+  usageLimit Int?
+  usedCount  Int    @default(0)
+  expiresAt DateTime
+  active   Boolean  @default(true)
+  @@unique([shopId, code])
+}
+
+model Supplier {
+  id          String @id @default(cuid())
+  shopId      String
+  code        String
+  name        String
+  phone       String?
+  address     String?
+  description String?
+  active      Boolean @default(true)
+}
+model Warehouse {
+  id        String  @id @default(cuid())
+  shopId    String
+  code      String
+  name      String
+  address   String?
+  ward      String?
+  district  String?
+  province  String?
+  managerId String?
+  phone     String?
+  isDefault Boolean @default(false)
+}
+
+model StockLevel {
+  id          String   @id @default(cuid())
+  productId   String
+  warehouseId String
+  qty         Int      @default(0)
+  updatedAt   DateTime @updatedAt
+  @@unique([productId, warehouseId])   // khóa dòng (SELECT … FOR UPDATE) khi trừ kho
+}
+
+model StockDocument {
+  id            String       @id @default(cuid())
+  shopId        String
+  code          String       // PN/PX/PC/PK + số
+  kind          StockDocKind
+  status        DocStatus    @default(DRAFT)
+  warehouseId   String
+  toWarehouseId String?
+  supplierId    String?
+  orderId       String?
+  note          String?
+  createdById   String
+  createdAt     DateTime     @default(now())
+  completedAt   DateTime?
+  items         StockDocumentItem[]
+  @@unique([shopId, code])
+}
+
+model StockDocumentItem {
+  id          String  @id @default(cuid())
+  documentId  String
+  productId   String
+  qty         Int
+  cost        Decimal? @db.Decimal(14, 0)
+  systemQty   Int?     // kiểm kho
+  countedQty  Int?
+  document    StockDocument @relation(fields: [documentId], references: [id])
+}
+
+model Order {
+  id             String        @id @default(cuid())
+  shopId         String
+  code           String
+  customerId     String
+  channelId      String?
+  conversationId String?
+  campaignId     String?
+  ownerId        String?               // Sale phụ trách
+  createdBySource String               // ai | agent | web_shop
+  status         OrderStatus   @default(NEW)
+  paymentStatus  PaymentStatus @default(UNPAID)
+  paymentMethod  PaymentMethod @default(COD)
+  subtotal       Decimal       @db.Decimal(14, 0)
+  discount       Decimal       @db.Decimal(14, 0) @default(0)
+  shippingFee    Decimal       @db.Decimal(14, 0) @default(0)
+  total          Decimal       @db.Decimal(14, 0)
+  couponId       String?
+  pointsUsed     Int           @default(0)
+  shippingAddress String?
+  note           String?
+  createdById    String?
+  createdAt      DateTime      @default(now())
+  items          OrderItem[]
+  @@unique([shopId, code])
+  @@index([shopId, createdAt])
+}
+
+model OrderItem {
+  id          String @id @default(cuid())
+  orderId     String
+  productId   String
+  comboId     String?
+  qty         Int
+  price       Decimal @db.Decimal(14, 0)
+  order       Order @relation(fields: [orderId], references: [id])
+}
+model Shipment {
+  id           String         @id @default(cuid())
+  shopId       String
+  orderId      String
+  carrier      Carrier
+  trackingCode String?
+  fee          Decimal        @db.Decimal(14, 0)
+  codAmount    Decimal        @db.Decimal(14, 0) @default(0)
+  status       ShipmentStatus @default(WAITING)
+  labelUrl     String?
+  rawPayload   Json?
+  createdAt    DateTime       @default(now())
+  @@unique([carrier, trackingCode])
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  shopId      String
+  orderId     String?
+  method      PaymentMethod
+  amount      Decimal       @db.Decimal(14, 0)
+  vietqrPayload String?               // chuỗi QR đã tạo
+  bankTxnId   String?       @unique   // mã giao dịch từ webhook ngân hàng – chống ghi nhận 2 lần
+  status      String        @default("pending")
+  paidAt      DateTime?
+  createdAt   DateTime      @default(now())
+}
+
+model CashTransaction {
+  id          String   @id @default(cuid())
+  shopId      String
+  code        String   // PT… / PC…
+  kind        String   // receipt | expense
+  amount      Decimal  @db.Decimal(14, 0)
+  method      PaymentMethod
+  category    String?
+  description String?
+  orderId     String?
+  paymentId   String?
+  status      String   @default("done")
+  paidAt      DateTime
+  createdById String
+  createdAt   DateTime @default(now())
+  @@unique([shopId, code])
+}
+
+model LoyaltyAccount {
+  id          String @id @default(cuid())
+  shopId      String
+  customerId  String @unique
+  points      Int @default(0)
+  updatedAt   DateTime @updatedAt
+}
+model LoyaltyTransaction {
+  id          String @id @default(cuid())
+  accountId   String
+  points      Int
+  reason      String
+  orderId     String?
+  createdAt   DateTime @default(now())
+}
+// ───────────── Phân hệ 2: Quảng cáo & Gửi tin hàng loạt ─────────────
+enum AdPlatform {
+  META
+  TIKTOK
+  GOOGLE
+}
+enum BroadcastChannel {
+  MESSENGER
+  ZALO_OA
+  ZALO_ZNS
+}
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+model AdAccount {
+  id             String     @id @default(cuid())
+  shopId         String
+  platform       AdPlatform
+  externalId     String
+  name           String
+  accessTokenEnc String
+  tokenExpiresAt DateTime?
+  channelIds     String[]
+  status         String     @default("connected")
+  lastSyncAt     DateTime?
+  @@unique([platform, externalId])
+}
+
+model AdCampaign {
+  id          String  @id @default(cuid())
+  adAccountId String
+  externalId  String
+  name        String
+  objective   String?
+  status      String
+  dailyBudget Decimal? @db.Decimal(14, 0)
+  channelId   String?
+  productIds  String[]
+  @@unique([adAccountId, externalId])
+}
+
+model AdSet {
+  id          String @id @default(cuid())
+  campaignId  String
+  externalId  String
+  name        String
+  status      String
+  audience    Json?
+}
+model Ad {
+  id          String @id @default(cuid())
+  adSetId     String
+  externalId  String
+  name        String
+  status      String
+  creative    Json?
+}
+model AdMetricDaily {
+  id          String   @id @default(cuid())
+  level       String   // campaign | adset | ad
+  entityId    String
+  date        DateTime @db.Date
+  spend       Decimal  @db.Decimal(14, 0)
+  impressions Int
+  reach       Int
+  clicks      Int
+  results     Int
+  @@unique([level, entityId, date])
+}
+
+model ZnsTemplate {
+  id          String @id @default(cuid())
+  shopId      String
+  templateId  String
+  name        String
+  params      Json
+  status      String
+  unitPrice   Decimal? @db.Decimal(10, 0)
+}
+model Broadcast {
+  id          String           @id @default(cuid())
+  shopId      String
+  name        String
+  channel     BroadcastChannel
+  audience    Json             // tags, lịch sử mua, tương tác cuối, giai đoạn, nguồn QC
+  content     String?
+  znsTemplateId String?
+  scheduledAt DateTime?
+  status      BroadcastStatus  @default(DRAFT)
+  createdById String
+  createdAt   DateTime         @default(now())
+  recipients  BroadcastRecipient[]
+}
+
+model BroadcastRecipient {
+  id          String   @id @default(cuid())
+  broadcastId String
+  customerId  String
+  status      String   // queued | sent | failed | skipped_policy | opted_out
+  error       String?
+  sentAt      DateTime?
+  readAt      DateTime?
+  repliedAt   DateTime?
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id])
+  @@unique([broadcastId, customerId])
+}
+
+// ───────────── Phân hệ 5: Gói phần mềm ─────────────
+model Subscription {
+  id               String   @id @default(cuid())
+  shopId           String   @unique
+  planCode         String   // STARTER | BUSINESS | ENTERPRISE
+  status           String   // active | past_due | cancelled
+  source           String   @default("web")   // gói chỉ bán trên web
+  currentPeriodEnd DateTime?
+  quotas           Json
+  shop             Shop     @relation(fields: [shopId], references: [id])
+}

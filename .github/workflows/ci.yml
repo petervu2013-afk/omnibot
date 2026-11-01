@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint · Format · Typecheck · Test · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # version comes from "packageManager" in package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Dependency audit (high and above)
+        run: pnpm audit --prod --audit-level high
+
+  api-e2e:
+    name: API e2e (PostgreSQL + Redis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: omnibot
+          POSTGRES_PASSWORD: omnibot
+          POSTGRES_DB: omnibot_e2e
+          POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U omnibot" --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://omnibot:omnibot@localhost:5432/omnibot_e2e
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter @omnibot/api...
+
+      - name: Prisma validate
+        working-directory: apps/api
+        run: pnpm exec prisma validate
+
+      - name: E2E tests (migrate deploy on a blank DB, /health, tenant guard, rate limit, startup)
+        run: pnpm --filter @omnibot/api test:e2e
+
+      - name: Migrations match schema.prisma
+        working-directory: apps/api
+        run: |
+          pnpm exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code || {
+            echo "::error::schema.prisma has changes without a migration (run: pnpm --filter @omnibot/api prisma:migrate)"; exit 1; }
