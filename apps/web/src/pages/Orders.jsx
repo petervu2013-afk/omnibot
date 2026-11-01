@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { ShoppingCart, Package, Users, Search, Plus, Download, Trash2, PackageOpen, ScanSearch, Sparkles } from 'lucide-react';
-import { useStore, uid, money, orderTotal, timeAgo, nextOrderId } from '../store.jsx';
-import { Modal, PlatformIcon, Avatar, useToast, productEmoji } from '../components/ui.jsx';
-import CatalogScanModal from '../components/CatalogScanModal.jsx';
+import { ShoppingCart, Package, Users, Search, Plus, Download, Trash2, PackageOpen, Lock, Sparkles } from 'lucide-react';
+import { useStore, money, orderTotal, timeAgo, nextOrderId } from '../store.jsx';
+import { Modal, PlatformIcon, useToast } from '../components/ui.jsx';
 import { setStage } from '../crm.js';
 import { Warehouse, Truck, Landmark } from 'lucide-react';
 import { SideMenu } from '../components/kit.jsx';
 import { navigate } from '../router.js';
-import { Categories, Combos, Coupons, Suppliers } from './pos/Catalog.jsx';
+import { useAuth } from '../auth.jsx';
+import { Combos, Coupons, Suppliers } from './pos/Catalog.jsx';
+import { Categories, ProductList } from './pos/Products.jsx';
+import { CustomerList } from './pos/Customers.jsx';
 import { Warehouses, StockDocs, StockLevels } from './pos/Inventory.jsx';
 import { Waybills, CashList, CashBook } from './pos/Finance.jsx';
 import { exportForOrder } from '../ops.js';
@@ -37,7 +39,10 @@ const MENU = [
 ];
 
 export default function Orders({ tab = 'orders' }) {
-  const page = {
+  const { can } = useAuth();
+  const canCustomers = can('customer.access');
+  const menu = MENU.filter((m) => m.key !== 'customers' || canCustomers);
+  const page = tab === 'customers' && !canCustomers ? <div className="empty" data-testid="no-access"><Lock size={32} /><p>Bạn không có quyền xem mục này.</p></div> : {
     orders: <OrderList />, products: <ProductList />, customers: <CustomerList />,
     categories: <Categories />, combos: <Combos />, coupons: <Coupons />, suppliers: <Suppliers />,
     warehouses: <Warehouses />, import: <StockDocs kind="import" />, export: <StockDocs kind="export" />, transfer: <StockDocs kind="transfer" />, stock: <StockLevels />, check: <StockDocs kind="check" />,
@@ -45,7 +50,7 @@ export default function Orders({ tab = 'orders' }) {
   }[tab] || <OrderList />;
   return (
     <div className="with-sidebar">
-      <SideMenu items={MENU} active={tab} onSelect={(k) => navigate(`orders/${k}`)} />
+      <SideMenu items={menu} active={tab} onSelect={(k) => navigate(`orders/${k}`)} />
       <div className="content">{page}</div>
     </div>
   );
@@ -175,97 +180,3 @@ export function OrderModal({ customerId, channelId, campaignId, conversationId, 
   );
 }
 
-function ProductList() {
-  const { state, update } = useStore();
-  const [draft, setDraft] = useState(null);
-  const [scanOpen, setScanOpen] = useState(false);
-  const [toast, toastNode] = useToast();
-  const save = () => {
-    update((d) => {
-      const existing = d.products.find((p) => p.id === draft.id);
-      if (existing) Object.assign(existing, draft); else d.products.push({ ...draft, id: uid() });
-    });
-    setDraft(null);
-  };
-  // How often the AI recommended each product, from product cards attached to AI replies.
-  const mentions = {};
-  state.conversations.forEach((v) => v.messages.forEach((m) => m.from === 'ai' && m.productIds?.forEach((id) => { mentions[id] = (mentions[id] || 0) + 1; })));
-  const missingDesc = state.products.filter((p) => !p.description).length;
-
-  return (
-    <div className="card">
-      <div className="row wrap" style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
-        <h3 className="grow">Danh mục sản phẩm ({state.products.length})</h3>
-        <button className="btn" onClick={() => setScanOpen(true)}><ScanSearch size={15} /> Quét danh mục</button>
-        <button className="btn primary" onClick={() => setDraft({ sku: '', name: '', category: '', price: 0, stock: 0, description: '' })}><Plus size={15} /> Thêm sản phẩm</button>
-      </div>
-      <div className="muted small" style={{ padding: '10px 14px', background: '#f8fafc' }}>
-        <Sparkles size={12} /> AI đọc toàn bộ danh mục (tên, giá, tồn kho, mô tả) để tư vấn và chốt đơn. Mô tả càng chi tiết, AI trả lời càng chính xác.
-        {missingDesc > 0 && <b style={{ color: 'var(--orange)' }}> {missingDesc} sản phẩm chưa có mô tả.</b>}
-      </div>
-      <div style={{ overflowX: 'auto' }}>
-        <table className="table">
-          <thead><tr><th>Sản phẩm</th><th>Danh mục</th><th>Giá bán</th><th>Tồn kho</th><th>AI gợi ý</th><th /></tr></thead>
-          <tbody>
-            {state.products.map((p) => (
-              <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => setDraft({ ...p })}>
-                <td>
-                  <div className="row" style={{ alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 22 }}>{productEmoji(p)}</span>
-                    <div><b>{p.name}</b><div className="muted small">{p.sku}</div><div className="small" style={{ maxWidth: 380 }}>{p.description || <i className="muted">Chưa có mô tả</i>}</div></div>
-                  </div>
-                </td>
-                <td>{p.category}</td>
-                <td>{money(p.price)}</td>
-                <td><span className={`badge ${p.stock <= 0 ? 'red' : p.stock < 5 ? 'orange' : 'green'}`}>{p.stock <= 0 ? 'Hết' : p.stock}</span></td>
-                <td>{mentions[p.id] || 0} lần</td>
-                <td><button className="icon-btn" onClick={(e) => { e.stopPropagation(); update((d) => { d.products = d.products.filter((x) => x.id !== p.id); }); }}><Trash2 size={15} color="var(--muted)" /></button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {draft && (
-        <Modal title={draft.id ? 'Sửa sản phẩm' : 'Thêm sản phẩm'} onClose={() => setDraft(null)} footer={<><button className="btn" onClick={() => setDraft(null)}>Hủy</button><button className="btn primary" onClick={save} disabled={!draft.name}>Lưu</button></>}>
-          <div className="form-grid">
-            <label className="field">Mã SKU<input className="input" value={draft.sku} onChange={(e) => setDraft({ ...draft, sku: e.target.value })} /></label>
-            <label className="field">Tên sản phẩm<input className="input" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
-            <label className="field">Danh mục<input className="input" list="categories" value={draft.category || ''} onChange={(e) => setDraft({ ...draft, category: e.target.value })} /></label>
-            <label className="field">Giá bán<input className="input" type="number" value={draft.price} onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })} /></label>
-            <label className="field">Tồn kho<input className="input" type="number" value={draft.stock} onChange={(e) => setDraft({ ...draft, stock: Number(e.target.value) })} /></label>
-          </div>
-          <datalist id="categories">{[...new Set(state.products.map((p) => p.category).filter(Boolean))].map((c) => <option key={c} value={c} />)}</datalist>
-          <label className="field">Mô tả cho AI (chất liệu, kích thước, điểm nổi bật)<textarea className="textarea" value={draft.description || ''} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
-        </Modal>
-      )}
-      {scanOpen && <CatalogScanModal onClose={() => setScanOpen(false)} onImported={(n) => { setScanOpen(false); toast(`Đã nhập ${n} sản phẩm vào danh mục`); }} />}
-      {toastNode}
-    </div>
-  );
-}
-
-function CustomerList() {
-  const { state } = useStore();
-  return (
-    <div className="card">
-      <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}><h3>Khách hàng ({state.customers.length})</h3></div>
-      <table className="table">
-        <thead><tr><th>Khách hàng</th><th>SĐT</th><th>Nhãn</th><th>Số đơn</th><th>Tổng chi tiêu</th></tr></thead>
-        <tbody>
-          {state.customers.map((c) => {
-            const orders = state.orders.filter((o) => o.customerId === c.id);
-            return (
-              <tr key={c.id}>
-                <td><div className="row"><Avatar name={c.name} size="sm" /> {c.name}</div></td>
-                <td>{c.phone || <span className="muted">—</span>}</td>
-                <td><div className="chips">{c.tags.map((t) => <span className="tag" key={t}>{t}</span>)}</div></td>
-                <td>{orders.length}</td>
-                <td>{money(orders.reduce((s, o) => s + orderTotal(o, state.products), 0))}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: OmniBot API
-  version: 0.4.0
+  version: 0.5.0
   description: Hợp đồng API của backend NestJS. Được bổ sung theo từng bước trong docs/IMPLEMENTATION_PLAN.md (Bước 1 – /health, Bước 2 – /auth/*, ...).
 servers:
   - url: http://localhost:3000
@@ -512,6 +512,174 @@ paths:
         '400': { $ref: '#/components/responses/Failure' }
         '401': { $ref: '#/components/responses/Failure' }
         '423': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/categories:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    get:
+      summary: Danh mục kèm số sản phẩm (quyền product.view)
+      operationId: categoriesList
+      responses:
+        '200': { description: OK }
+        '403': { $ref: '#/components/responses/Failure' }
+    post:
+      summary: Tạo danh mục (quyền product.manage)
+      operationId: categoryCreate
+      responses:
+        '201': { description: Đã tạo }
+        '400': { $ref: '#/components/responses/Failure' }
+        '403': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/categories/{categoryId}:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+      - { name: categoryId, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Sửa danh mục (quyền product.manage)
+      operationId: categoryUpdate
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/Failure' }
+    delete:
+      summary: Xóa danh mục; sản phẩm được giữ, không còn danh mục (quyền product.manage)
+      operationId: categoryDelete
+      responses:
+        '204': { description: Đã xóa }
+        '404': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/products:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    get:
+      summary: Danh sách sản phẩm (quyền product.view)
+      operationId: productsList
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: 'Tên, SKU hoặc mã vạch' }
+        - { name: categoryId, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 'Gồm items và nextCursor' }
+        '403': { $ref: '#/components/responses/Failure' }
+    post:
+      summary: Tạo sản phẩm (quyền product.manage)
+      description: SKU_TAKEN (409) khi trùng SKU trong shop.
+      operationId: productCreate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductInput' }
+      responses:
+        '201': { description: Đã tạo }
+        '400': { $ref: '#/components/responses/Failure' }
+        '403': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/products/import:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    post:
+      summary: Nhập tối đa 500 sản phẩm; khớp theo SKU rồi tên, tự tạo danh mục thiếu (quyền product.manage)
+      operationId: productImport
+      responses:
+        '201': { description: 'Trả về created, updated' }
+        '400': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/products/{productId}:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+      - { name: productId, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Chi tiết sản phẩm (quyền product.view)
+      operationId: productGet
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/Failure' }
+    patch:
+      summary: Sửa sản phẩm (quyền product.manage)
+      operationId: productUpdate
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+    delete:
+      summary: Xóa sản phẩm; đã có trong đơn thì trả PRODUCT_IN_USE (quyền product.manage)
+      operationId: productDelete
+      responses:
+        '204': { description: Đã xóa }
+        '404': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/customers:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    get:
+      summary: Khách hàng trong phạm vi dữ liệu của người gọi (quyền customer.access)
+      operationId: customersList
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: 'Tên, email hoặc SĐT' }
+        - { name: stage, in: query, schema: { $ref: '#/components/schemas/Stage' } }
+        - { name: limit, in: query, schema: { type: integer, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 'Gồm items và nextCursor' }
+        '403': { $ref: '#/components/responses/Failure' }
+    post:
+      summary: Tạo khách hàng; Sale tự làm người phụ trách (quyền customer.access)
+      description: CUSTOMER_EXISTS (409) khi SĐT đã có trong shop.
+      operationId: customerCreate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerInput' }
+      responses:
+        '201': { description: Đã tạo }
+        '400': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/customers/{customerId}:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+      - { name: customerId, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Chi tiết khách; ngoài phạm vi trả 404 (quyền customer.access)
+      operationId: customerGet
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/Failure' }
+    patch:
+      summary: Sửa khách trong phạm vi (quyền customer.access)
+      operationId: customerUpdate
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerInput' }
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+    delete:
+      summary: Xóa hồ sơ chưa có lịch sử; có đơn hoặc hội thoại trả CUSTOMER_IN_USE (quyền customer.delete)
+      operationId: customerDelete
+      responses:
+        '204': { description: Đã xóa }
+        '403': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/customers/{customerId}/assign:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+      - { name: customerId, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Đổi người phụ trách; ownerId null là chưa phân (quyền lead.assign)
+      operationId: customerAssign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ownerId]
+              properties:
+                ownerId: { type: [string, 'null'] }
+      responses:
+        '201': { description: OK }
+        '403': { $ref: '#/components/responses/Failure' }
+        '404': { $ref: '#/components/responses/Failure' }
 components:
   parameters:
     ShopId:
@@ -554,6 +722,34 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
           example: { error: { code: RATE_LIMITED, message: 'Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút.' }, requestId: 3f0c… }
   schemas:
+    Stage:
+      type: string
+      enum: [NEW, CONTACTING, CONSULTING, QUOTED, WON, NURTURING, LOST]
+    ProductInput:
+      type: object
+      additionalProperties: false
+      required: [sku, name, price]
+      properties:
+        sku: { type: string }
+        name: { type: string }
+        categoryId: { type: [string, 'null'] }
+        price: { type: integer, minimum: 0 }
+        costPrice: { type: [integer, 'null'], minimum: 0 }
+        description: { type: [string, 'null'] }
+        barcode: { type: [string, 'null'] }
+        active: { type: boolean }
+    CustomerInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string }
+        phone: { type: [string, 'null'] }
+        email: { type: [string, 'null'] }
+        address: { type: [string, 'null'] }
+        tags: { type: array, items: { type: string } }
+        stage: { : '#/components/schemas/Stage' }
+        expectedValue: { type: [integer, 'null'] }
     PasswordConfirm:
       type: object
       required: [password]

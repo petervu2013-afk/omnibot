@@ -11,7 +11,7 @@ const ROWS: Record<string, { all: Permission[]; partial?: Partial<Record<Role, P
   'Dashboard điều hành': { all: ['dashboard.view'], partial: { SALE: ['dashboard.view'], WAREHOUSE: ['dashboard.view'] } },
   'Livechat & trả lời khách': { all: ['chat.reply'], partial: { SALE: ['chat.reply'] } },
   'Bật/tắt AI, cấu hình bot, kịch bản': { all: ['bot.manage'] },
-  'Khách hàng / CRM': { all: ['customer.access'], partial: { SALE: ['customer.access'] } },
+  'Khách hàng / CRM': { all: ['customer.access', 'customer.delete'], partial: { SALE: ['customer.access'] } },
   'Phân lead, đổi người phụ trách': { all: ['lead.assign'] },
   'Tạo đơn / sửa đơn': { all: ['order.view', 'order.write'], partial: { SALE: ['order.view', 'order.write'], WAREHOUSE: ['order.view'] } },
   'Hủy đơn, hoàn tiền': { all: ['order.cancel'] },

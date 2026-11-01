@@ -59,3 +59,6 @@ Bước 4 được chia làm hai phần. **4A (báo cáo này) đã xong phần 
 
 ## 4. Lỗi còn mở
 Nghiêm trọng 0 · Cao 0 · Trung bình 0 · Thấp 0.
+
+## Cập nhật 01/11/2026: CI thật
+PR #2 chạy xanh cả 3 job, gồm test trình duyệt và API với PostgreSQL 18 + Redis 8 thật. 4B xem `STEP-04B.md`.

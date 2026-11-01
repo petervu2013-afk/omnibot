@@ -3,6 +3,8 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { CatalogController } from '../src/catalog/catalog.controller.js';
+import { CustomerController } from '../src/catalog/customer.controller.js';
 import { PrismaService } from '../src/core/prisma.service.js';
 import { MailService } from '../src/mail/mail.service.js';
 import { AuditLogController } from '../src/shop/audit-log.controller.js';
@@ -26,7 +28,7 @@ interface Route {
 }
 
 function shopRoutes(): Route[] {
-  return [ShopController, AuditLogController].flatMap((ctrl) => {
+  return [ShopController, AuditLogController, CatalogController, CustomerController].flatMap((ctrl) => {
     const base = Reflect.getMetadata('path', ctrl) as string;
     return Object.getOwnPropertyNames(ctrl.prototype)
       .map((name) => (ctrl.prototype as unknown as Record<string, object>)[name]!)
@@ -34,7 +36,8 @@ function shopRoutes(): Route[] {
       .map((fn) => ({
         verb: VERBS[Reflect.getMetadata('method', fn) as number]!,
         path: `/v1/${base}/${(Reflect.getMetadata('path', fn) as string).replace(/^\//, '')}`.replace(/\/$/, ''),
-        permission: Reflect.getMetadata(PERMISSION_KEY, fn) as Permission | undefined,
+        // A method-level @Permission replaces the controller-level one.
+        permission: (Reflect.getMetadata(PERMISSION_KEY, fn) ?? Reflect.getMetadata(PERMISSION_KEY, ctrl)) as Permission | undefined,
         audit: Reflect.getMetadata(AUDIT_KEY, fn) as string | undefined,
       }))
       .filter((r) => r.path.includes(':shopId'));
@@ -97,7 +100,7 @@ describe('RBAC', () => {
   });
 
   const call = (r: Route, token: string, shop = shopId) => {
-    const url = r.path.replace(':shopId', shop).replace(':memberId', 'khong-co').replace(':invitationId', 'khong-co');
+    const url = r.path.replace(':shopId', shop).replace(/:w+/g, 'khong-co');
     return api()[r.verb](url).set(bearer(token));
   };
 
@@ -130,7 +133,7 @@ describe('RBAC', () => {
         const res = await call(r, actors.outsider.token);
         expect(res.status).toBe(404);
         expect(res.body.error.code).toBe('SHOP_NOT_FOUND');
-        const url = r.path.replace(':shopId', shopId).replace(':memberId', 'x').replace(':invitationId', 'x');
+        const url = r.path.replace(':shopId', shopId).replace(/:w+/g, 'x');
         await api()[r.verb](url).expect(401);
       });
     }
