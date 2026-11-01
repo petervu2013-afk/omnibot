@@ -748,7 +748,7 @@ components:
         email: { type: [string, 'null'] }
         address: { type: [string, 'null'] }
         tags: { type: array, items: { type: string } }
-        stage: { : '#/components/schemas/Stage' }
+        stage: { $ref: '#/components/schemas/Stage' }
         expectedValue: { type: [integer, 'null'] }
     PasswordConfirm:
       type: object
