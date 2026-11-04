@@ -12,8 +12,8 @@
 | 1 – Hạ tầng backend | 🟡 Code **đạt** (lint, typecheck, 26 unit + 14 e2e trên PostgreSQL, migrate trên DB trắng; báo cáo `docs/reports/STEP-01.md`) | Staging HTTPS (cần VPS); build thử Docker. CI thật đã xanh |
 | 2 – Xác thực | 🟡 Code **đạt** (47 unit + 38 e2e, độ phủ auth 96,7%; báo cáo `docs/reports/STEP-02.md`) | Review 2 người, quét OWASP ZAP, chạy với SMTP/Turnstile thật; chọn nhà cung cấp email |
 | 3 – Phân quyền, Audit log | 🟡 Code **đạt** (70 unit + 126 e2e; ma trận quyền 100% có test; báo cáo `docs/reports/STEP-03.md`) | Người review |
-| 4A – Web: đăng nhập, phân quyền, nhân viên | 🟡 Code **đạt** (12 test trình duyệt; báo cáo `docs/reports/STEP-04A.md`) | Staging; CI job web-e2e chạy lần đầu |
-| 4B – Sản phẩm, danh mục, khách hàng lưu DB | ⬜ Chưa làm | Bắt buộc để qua cổng Bước 4 |
+| 4A – Web: đăng nhập, phân quyền, nhân viên | 🟡 Code **đạt** (12 test trình duyệt; báo cáo `docs/reports/STEP-04A.md`) | Staging. CI thật đã xanh |
+| 4B – Sản phẩm, danh mục, khách hàng lưu DB | 🟡 Code **đạt** (báo cáo `docs/reports/STEP-04B.md`) | CI cho 4B; staging để qua cổng Bước 4 |
 | 5 → 19 | ⬜ Chưa bắt đầu | |
 
 ---

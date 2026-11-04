@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Globe, ClipboardPaste, ScanSearch, Loader2 } from 'lucide-react';
-import { useStore, uid, money } from '../store.jsx';
+import { money } from '../store.jsx';
 import { aiHealth } from '../ai.js';
 import { Modal } from './ui.jsx';
 import { parseTable, mapHeaders, toNumber, normHeader as norm } from '../csv.js';
@@ -26,8 +26,8 @@ export function parseCsv(text) {
   }).filter((p) => p.name);
 }
 
-export default function CatalogScanModal({ onClose, onImported }) {
-  const { state, update } = useStore();
+export default function CatalogScanModal({ onClose, onImported, onImportRows, existing }) {
+  const [importError, setImportError] = useState('');
   const [tab, setTab] = useState('url');
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
@@ -60,19 +60,18 @@ export default function CatalogScanModal({ onClose, onImported }) {
     }
   };
 
-  const importSelected = () => {
+  const importSelected = async () => {
     const rows = found.filter((_, i) => selected[i]);
-    update((d) => {
-      rows.forEach((r) => {
-        const existing = d.products.find((p) => (r.sku && p.sku === r.sku) || norm(p.name) === norm(r.name));
-        const data = { name: r.name, sku: r.sku || existing?.sku || '', category: r.category || existing?.category || 'Khác', price: r.price || existing?.price || 0, stock: r.stock ?? existing?.stock ?? 0, description: r.description || existing?.description || '' };
-        if (existing) Object.assign(existing, data); else d.products.push({ id: uid(), ...data });
-      });
-    });
-    onImported(rows.length);
+    setImportError('');
+    try {
+      await onImportRows(rows);
+      onImported(rows.length);
+    } catch (err) {
+      setImportError(err.message);
+    }
   };
 
-  const existsCount = found ? found.filter((r) => state.products.some((p) => (r.sku && p.sku === r.sku) || norm(p.name) === norm(r.name))).length : 0;
+  const existsCount = found ? found.filter((r) => existing.some((p) => (r.sku && p.sku === r.sku) || norm(p.name) === norm(r.name))).length : 0;
 
   return (
     <Modal
@@ -99,7 +98,7 @@ export default function CatalogScanModal({ onClose, onImported }) {
               <textarea className="textarea" style={{ minHeight: 200, fontFamily: 'monospace', fontSize: 12.5 }} value={text} onChange={(e) => setText(e.target.value)} placeholder={'Tên\tGiá\tDanh mục\tTồn kho\tMô tả\nBàn trà gỗ sồi\t2.300.000\tBàn trà\t10\tMặt 100x50cm, gỗ sồi Mỹ'} />
             </label>
           )}
-          {error && <div className="ai-banner off">{error}</div>}
+          {(error || importError) && <div className="ai-banner off">{error || importError}</div>}
         </>
       )}
       {found && (
