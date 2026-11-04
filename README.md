@@ -14,12 +14,14 @@ Monorepo (pnpm workspaces):
 ```bash
 corepack enable pnpm      # một lần (Node 22+)
 pnpm install
-pnpm dev                  # http://localhost:5173 – tài khoản demo: admin@goviet.vn / Demo@1234
+pnpm dev                  # http://localhost:5173 (đăng nhập cần API và db:seed bên dưới)
 pnpm --filter @omnibot/api db:local  # PostgreSQL cục bộ không cần Docker (cổng 5433); hoặc: docker compose up
-pnpm --filter @omnibot/api start     # API http://localhost:3000/health – cần apps/api/.env (xem .env.example) và build trước
+pnpm --filter @omnibot/api db:seed   # tạo 4 tài khoản dev theo vai trò (admin@, quanly@, sale@, kho@goviet.vn / Demo@1234)
+pnpm --filter @omnibot/api start     # API http://localhost:3000/health – cần apps/api/.env (xem .env.example) và build trước; web cần API này để đăng nhập
 pnpm dev:ai               # tùy chọn: AI Claude, cần apps/ai-server/.env (xem .env.example)
 pnpm --filter @omnibot/mobile start   # app di động: quét QR bằng Expo Go (điện thoại / iPad)
 pnpm --filter @omnibot/mobile web     # xem app di động trên trình duyệt: http://localhost:8081
+pnpm --filter @omnibot/web test:e2e  # test trình duyệt (cần Google Chrome, build API trước)
 pnpm check                # lint + format + typecheck + test + build (giống CI)
 ```
 

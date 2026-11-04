@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: OmniBot API
-  version: 0.3.0
+  version: 0.4.0
   description: Hợp đồng API của backend NestJS. Được bổ sung theo từng bước trong docs/IMPLEMENTATION_PLAN.md (Bước 1 – /health, Bước 2 – /auth/*, ...).
 servers:
   - url: http://localhost:3000
@@ -114,6 +114,40 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Failure' }
+    patch:
+      summary: Sửa họ tên, số điện thoại của tôi
+      operationId: authUpdateProfile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                fullName: { type: string }
+                phone: { type: [string, 'null'] }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '400': { $ref: '#/components/responses/Failure' }
+        '401': { $ref: '#/components/responses/Failure' }
+  /v1/auth/login-history:
+    get:
+      summary: 100 lần đăng nhập gần nhất của chính tôi
+      operationId: authLoginHistory
+      responses:
+        '200': { description: 'Danh sách id, action, ok, ip, userAgent, createdAt' }
+        '401': { $ref: '#/components/responses/Failure' }
+  /v1/auth/logout-others:
+    post:
+      summary: Đăng xuất mọi thiết bị khác, giữ thiết bị này
+      operationId: authLogoutOthers
+      responses:
+        '200': { description: 'Trả về số thiết bị đã đăng xuất (revoked)' }
         '401': { $ref: '#/components/responses/Failure' }
   /v1/auth/sessions:
     get:
@@ -585,6 +619,11 @@ components:
         name: { type: string }
         slug: { type: string }
         role: { type: string, enum: [ADMIN, MANAGER, SALE, WAREHOUSE] }
+        isOwner: { type: boolean }
+        permissions:
+          type: array
+          description: Quyền của vai trò trong shop này; chỉ dùng để hiển thị, API vẫn kiểm tra mỗi yêu cầu
+          items: { type: string }
     Me:
       type: object
       properties:

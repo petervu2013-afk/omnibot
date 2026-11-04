@@ -15,3 +15,5 @@ apps/api/src/generated
 apps/api/prisma/migrations
 .outbox
 .pgdata
+test-results
+playwright-report

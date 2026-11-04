@@ -96,3 +96,45 @@ jobs:
         run: |
           pnpm exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code || {
             echo "::error::schema.prisma has changes without a migration (run: pnpm --filter @omnibot/api prisma:migrate)"; exit 1; }
+
+  web-e2e:
+    name: Web e2e (Chrome + API + PostgreSQL + Redis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: omnibot
+          POSTGRES_PASSWORD: omnibot
+          POSTGRES_DB: omnibot_web
+          POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U omnibot" --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://omnibot:omnibot@localhost:5432/omnibot_web
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter @omnibot/api... --filter @omnibot/web...
+
+      - name: Build API
+        run: pnpm --filter @omnibot/api build
+
+      - name: Browser tests
+        run: pnpm --filter @omnibot/web test:e2e

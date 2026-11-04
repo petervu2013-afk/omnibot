@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
-  LayoutGrid, Gauge, Contact, Megaphone, MessageSquare, FileText, ShoppingCart, CalendarDays, BarChart3, Settings, Bell, ChevronDown, Bot,
+  Store, LayoutGrid, Gauge, Contact, Megaphone, MessageSquare, FileText, ShoppingCart, CalendarDays, BarChart3, Settings, Bell, ChevronDown, Bot,
 } from 'lucide-react';
 import { useStore } from './store.jsx';
 import { Avatar } from './components/ui.jsx';
 import { navigate } from './router.js';
-import { useAuth, VERIFY_GRACE_DAYS } from './auth.jsx';
-import { LoginPage, RegisterPage, ForgotPage, ResetPage, VerifyPage, LegalPage } from './pages/auth/AuthPages.jsx';
-import { ShieldCheck, LogOut, MailWarning } from 'lucide-react';
+import { useAuth } from './auth.jsx';
+import { allowed, PAGE_PERMISSION, ROLE_LABEL } from './access.js';
+import { LoginPage, RegisterPage, ForgotPage, ResetPage, VerifyPage, InvitePage, LegalPage } from './pages/auth/AuthPages.jsx';
+import { ShieldCheck, LogOut, MailWarning, Lock, FlaskConical } from 'lucide-react';
 import Home from './pages/Home.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import BotBuilder from './pages/BotBuilder.jsx';
@@ -44,14 +45,15 @@ function useHashRoute() {
   return route;
 }
 
-const PUBLIC = ['login', 'register', 'forgot', 'reset', 'verify', 'legal'];
+const PUBLIC = ['login', 'register', 'forgot', 'reset', 'verify', 'invite', 'legal'];
 
 export default function App() {
   const route = useHashRoute();
-  const { ready, user } = useAuth();
+  const { ready, user, offline, retry } = useAuth();
   const [section, param] = route.split('?')[0].split('/');
 
   if (!ready) return <div className="empty">Đang tải…</div>;
+  if (!user && offline && !PUBLIC.includes(section)) return <div className="empty"><p>Không kết nối được máy chủ OmniBot.</p><button className="btn primary" onClick={retry}>Thử lại</button></div>;
   if (PUBLIC.includes(section)) {
     if (user && ['login', 'register', 'forgot'].includes(section)) {
       const next = new URLSearchParams(route.split('?')[1] || '').get('next');
@@ -63,19 +65,32 @@ export default function App() {
     if (section === 'forgot') return <ForgotPage />;
     if (section === 'reset') return <ResetPage />;
     if (section === 'verify') return <VerifyPage />;
+    if (section === 'invite') return <InvitePage />;
     return <LegalPage doc={param} />;
   }
   if (!user) { navigate(`login?next=${encodeURIComponent(route)}`); return null; }
   return <Shell route={route} section={section} param={param} />;
 }
 
+function NoAccess({ home }) {
+  return <div className="empty" data-testid="no-access"><Lock size={32} /><p>Bạn không có quyền xem trang này.</p><button className="btn primary" onClick={() => navigate(home)}>Về trang chính</button></div>;
+}
+function NoShop() {
+  return <div className="empty"><p>Bạn chưa thuộc cửa hàng nào đang hoạt động. Hãy nhờ quản trị viên mời lại.</p></div>;
+}
+function Empty() {
+  return <div className="empty"><p>Chọn một mục trên thanh menu để bắt đầu.</p></div>;
+}
+
 function Shell({ route, section, param }) {
   const { state } = useStore();
-  const { user, logout, resendVerification } = useAuth();
+  const { user, logout, resendVerification, shop, shops, switchShop, can } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [verifySent, setVerifySent] = useState(false);
   const unread = state.conversations.reduce((s, c) => s + c.unread, 0);
-  const verifyDaysLeft = Math.max(0, Math.ceil((user.createdAt + VERIFY_GRACE_DAYS * 86400000 - Date.now()) / 86400000));
+  const verifyDaysLeft = user.verifyDeadline ? Math.max(0, Math.ceil((new Date(user.verifyDeadline) - Date.now()) / 86400000)) : 0;
+  const menu = NAV.filter((n) => allowed(can, PAGE_PERMISSION[n.path]));
+  const fallback = menu[0]?.path ?? 'settings';
 
   let page;
   switch (section) {
@@ -90,8 +105,12 @@ function Shell({ route, section, param }) {
     case 'reports': page = <Reports tab={param} />; break;
     case 'settings': page = <SettingsPage tab={param} />; break;
     case 'ads': page = <Ads key={route} tab={param} />; break;
-    default: page = <Home />;
+    default: page = can('dashboard.view') ? <Home /> : <Empty />;
   }
+  // Only the settings shown as real are stored on the server; other sections still run on browser sample data (Step 4B onward).
+  const sampleData = section !== 'settings';
+  if (!shop) page = <NoShop />;
+  else if (!allowed(can, PAGE_PERMISSION[section === '' ? 'home' : section] ?? null)) page = <NoAccess home={fallback} />;
   const activeNav = ['templates', 'bot'].includes(section) ? 'dashboard' : NAV.some((n) => n.path === section) ? section : 'home';
 
   return (
@@ -101,7 +120,7 @@ function Shell({ route, section, param }) {
           <Bot size={24} /> <span>OmniBot</span>
         </div>
         <nav className="nav-items">
-          {NAV.map(({ path, label, icon: Icon }) => (
+          {menu.map(({ path, label, icon: Icon }) => (
             <button key={path} className={`nav-item ${activeNav === path ? 'active' : ''}`} title={label} onClick={() => navigate(path)}>
               <Icon size={16} /> <span className="nav-label">{label}</span>
             </button>
@@ -114,14 +133,17 @@ function Shell({ route, section, param }) {
           </button>
           <div className="user-menu">
             <button className="nav-user icon-btn" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen}>
-              <span>{user.shopName || state.shop.name}</span> <ChevronDown size={14} />
+              <span>{shop?.name ?? 'Chưa có cửa hàng'}</span> <ChevronDown size={14} />
               <Avatar name={user.fullName} />
             </button>
             {menuOpen && (
               <>
                 <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
                 <div className="menu-pop">
-                  <div className="menu-head"><b>{user.fullName}</b><span className="muted small">{user.email}</span><span className="badge blue" style={{ alignSelf: 'flex-start' }}>Admin · {user.shopName}</span></div>
+                  <div className="menu-head"><b>{user.fullName}</b><span className="muted small">{user.email}</span>{shop && <span className="badge blue" data-testid="current-role" style={{ alignSelf: 'flex-start' }}>{ROLE_LABEL[shop.role]} · {shop.name}</span>}</div>
+                  {shops.length > 1 && shops.filter((s) => s.id !== shop?.id).map((s) => (
+                    <button key={s.id} onClick={() => { setMenuOpen(false); switchShop(s.id); }}><Store size={15} /> Chuyển sang {s.name} ({ROLE_LABEL[s.role]})</button>
+                  ))}
                   <button onClick={() => { setMenuOpen(false); navigate('settings/security'); }}><ShieldCheck size={15} /> Tài khoản & bảo mật</button>
                   <button onClick={() => { setMenuOpen(false); navigate('settings/info'); }}><Settings size={15} /> Cài đặt cửa hàng</button>
                   <button className="danger" onClick={() => { setMenuOpen(false); logout(); }}><LogOut size={15} /> Đăng xuất</button>
@@ -136,9 +158,9 @@ function Shell({ route, section, param }) {
           <MailWarning size={15} />
           <span className="grow">Email <b>{user.email}</b> chưa được xác minh. Hãy mở liên kết trong email (còn {verifyDaysLeft} ngày sử dụng trước khi bị giới hạn).</span>
           <button className="btn sm" onClick={() => { resendVerification(); setVerifySent(true); }}>{verifySent ? 'Đã gửi lại' : 'Gửi lại email xác minh'}</button>
-          <button className="btn sm" onClick={() => navigate('settings/security')}>Xem hộp thư demo</button>
         </div>
       )}
+      {sampleData && shop && <div className="verify-banner" data-testid="sample-banner"><FlaskConical size={15} /><span className="grow">Trang này đang hiển thị <b>dữ liệu mẫu</b> lưu trên trình duyệt, chưa phải dữ liệu thật của cửa hàng.</span></div>}
       <main className="main">{page}</main>
     </div>
   );

@@ -7,7 +7,16 @@ import EmbeddedPostgres from 'embedded-postgres';
 const port = Number(process.env.PGPORT ?? 5433);
 const databaseDir = fileURLToPath(new URL('../.pgdata', import.meta.url));
 const fresh = !existsSync(databaseDir);
-const pg = new EmbeddedPostgres({ databaseDir, user: 'omnibot', password: 'omnibot', port, persistent: true, onLog: () => {}, initdbFlags: ['--encoding=UTF8', '--locale=C'] });
+const pg = new EmbeddedPostgres({
+  databaseDir,
+  user: 'omnibot',
+  password: 'omnibot',
+  port,
+  persistent: true,
+  onLog: () => {},
+  initdbFlags: ['--encoding=UTF8', '--locale=C'],
+  postgresFlags: ['-c', 'io_method=sync'],
+});
 
 if (fresh) await pg.initialise();
 await pg.start();

@@ -226,6 +226,36 @@ describe('auth flows', () => {
       await api().get('/v1/auth/me').set(bearer(a.accessToken)).expect(401);
     });
 
+    it('logout-others keeps this device only', async () => {
+      const r = await register();
+      const other = (await login(r.email)).body;
+      const res = await api().post('/v1/auth/logout-others').set(bearer(r.accessToken)).expect(200);
+      expect(res.body.revoked).toBe(1);
+      await api().get('/v1/auth/me').set(bearer(r.accessToken)).expect(200);
+      await api().get('/v1/auth/me').set(bearer(other.accessToken)).expect(401);
+    });
+
+    it('updates the profile, rejects bad input, and lists own login history', async () => {
+      const r = await register();
+      await login(r.email, 'Sai-mat-khau-1');
+      await login(r.email);
+      const updated = await api().patch('/v1/auth/me').set(bearer(r.accessToken)).send({ fullName: 'Tên Mới', phone: '0901234567' }).expect(200);
+      expect(updated.body.user).toMatchObject({ fullName: 'Tên Mới', phone: '0901234567' });
+      await api().patch('/v1/auth/me').set(bearer(r.accessToken)).send({ phone: 'abc' }).expect(400);
+      await api().patch('/v1/auth/me').set(bearer(r.accessToken)).send({ email: 'khac@example.vn' }).expect(400);
+      const history = await api().get('/v1/auth/login-history').set(bearer(r.accessToken)).expect(200);
+      expect(history.body.map((h: { ok: boolean }) => h.ok)).toEqual(expect.arrayContaining([true, false]));
+      expect(history.body[0].ip).toBeTruthy();
+      await api().get('/v1/auth/login-history').expect(401);
+    });
+
+    it('/me lists each shop with the permissions of that role', async () => {
+      const r = await register();
+      const me = await api().get('/v1/auth/me').set(bearer(r.accessToken)).expect(200);
+      expect(me.body.shops[0]).toMatchObject({ role: 'ADMIN', isOwner: true });
+      expect(me.body.shops[0].permissions).toEqual(expect.arrayContaining(['staff.manage', 'shop.owner']));
+    });
+
     it('cannot revoke another user session', async () => {
       const victim = await register();
       const attacker = await register();

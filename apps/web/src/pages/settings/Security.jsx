@@ -1,19 +1,22 @@
 // Tài khoản & bảo mật: profile, email verification, password change, signed-in devices, login history, 2FA, account deletion.
 import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Monitor, Smartphone, LogOut, ShieldCheck, KeyRound, Trash2, MailCheck, MailWarning, UserRound } from 'lucide-react';
-import { useAuth, passwordIssues, passwordStrength, DELETE_AFTER_DAYS, VERIFY_GRACE_DAYS } from '../../auth.jsx';
+import { api } from '../../api.js';
+import { ROLE_LABEL } from '../../access.js';
+import { useAuth, passwordIssues, passwordStrength, DELETE_AFTER_DAYS } from '../../auth.jsx';
 import { DataTable, Status, fmtDate } from '../../components/kit.jsx';
 import { Modal, useToast } from '../../components/ui.jsx';
-import { DemoMailbox } from '../auth/AuthPages.jsx';
 
-const ago = (ts) => {
-  const s = (Date.now() - ts) / 1000;
-  if (s < 90) return 'Đang hoạt động';
+const ago = (value) => {
+  const s = (Date.now() - new Date(value)) / 1000;
+  if (s < 90) return 'Vừa hoạt động';
   if (s < 3600) return `${Math.round(s / 60)} phút trước`;
   if (s < 86400) return `${Math.round(s / 3600)} giờ trước`;
   return `${Math.round(s / 86400)} ngày trước`;
 };
 const PLATFORM = { WEB: 'Web', ANDROID: 'Android', IOS: 'iOS' };
+const date = (value) => new Date(value).toLocaleDateString('vi-VN');
 
 function Card({ icon: Icon, title, desc, children, danger }) {
   return (
@@ -29,23 +32,54 @@ function Card({ icon: Icon, title, desc, children, danger }) {
 
 export default function Security() {
   const auth = useAuth();
-  const { user, client } = auth;
+  const { user, shop } = auth;
+  const qc = useQueryClient();
   const [toast, toastNode] = useToast();
   const [profile, setProfile] = useState({ fullName: user.fullName, phone: user.phone || '' });
-  const [pw, setPw] = useState({ current: '', next: '', confirm: '', signOutOthers: true });
+  const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
   const [pwError, setPwError] = useState('');
   const [deleting, setDeleting] = useState(false);
-  const sessions = auth.mySessions();
-  const daysLeft = Math.max(0, Math.ceil((user.createdAt + VERIFY_GRACE_DAYS * 86400000 - Date.now()) / 86400000));
+  const sessions = useQuery({ queryKey: ['sessions'], queryFn: () => api('/auth/sessions'), refetchInterval: 30000 });
+  const history = useQuery({ queryKey: ['login-history'], queryFn: () => api('/auth/login-history') });
+  const list = sessions.data ?? [];
+  const daysLeft = user.verifyDeadline ? Math.max(0, Math.ceil((new Date(user.verifyDeadline) - Date.now()) / 86400000)) : 0;
+  const refreshSessions = () => qc.invalidateQueries({ queryKey: ['sessions'] });
+  const revoke = useMutation({
+    mutationFn: (id) => api(`/auth/sessions/${id}`, { method: 'DELETE' }),
+    onSuccess: () => { toast('Đã đăng xuất thiết bị'); refreshSessions(); },
+    onError: (err) => toast(err.message),
+  });
+
+  const saveProfile = async () => {
+    const r = await auth.updateProfile({ fullName: profile.fullName.trim(), phone: profile.phone.trim() || null });
+    toast(r.error ?? 'Đã lưu hồ sơ');
+  };
 
   const changePassword = async (e) => {
     e.preventDefault();
     setPwError('');
     if (pw.next !== pw.confirm) return setPwError('Mật khẩu nhập lại không khớp.');
-    const r = await auth.changePassword(pw.current, pw.next, pw.signOutOthers);
+    const r = await auth.changePassword(pw.current, pw.next);
     if (r.error) return setPwError(r.error);
-    setPw({ current: '', next: '', confirm: '', signOutOthers: true });
-    toast(`Đã đổi mật khẩu${r.revoked ? `, đăng xuất ${r.revoked} thiết bị khác` : ''}`);
+    setPw({ current: '', next: '', confirm: '' });
+    refreshSessions();
+    toast('Đã đổi mật khẩu và đăng xuất các thiết bị khác');
+  };
+
+  const others = async () => {
+    const r = await auth.revokeOthers();
+    toast(r.error ?? `Đã đăng xuất ${r.revoked} thiết bị khác`);
+    refreshSessions();
+  };
+
+  const cancelDeletion = async () => {
+    const r = await auth.cancelDeletion();
+    toast(r.error ?? 'Đã hủy yêu cầu xóa tài khoản');
+  };
+
+  const resend = async () => {
+    const r = await auth.resendVerification();
+    toast(r.error ?? 'Đã gửi lại email xác minh');
   };
 
   return (
@@ -55,8 +89,8 @@ export default function Security() {
       {user.deletionRequestedAt && (
         <div className="auth-alert error" style={{ alignItems: 'center' }}>
           <Trash2 size={16} />
-          <span className="grow">Tài khoản đang chờ xóa – dữ liệu sẽ bị xóa vào {new Date(user.deletionRequestedAt + DELETE_AFTER_DAYS * 86400000).toLocaleDateString('vi-VN')}.</span>
-          <button className="btn sm primary" onClick={() => { auth.cancelDeletion(); toast('Đã hủy yêu cầu xóa tài khoản'); }}>Hủy yêu cầu xóa</button>
+          <span className="grow">Tài khoản đang chờ xóa – dữ liệu sẽ bị xóa vào {date(user.purgeAt)}.</span>
+          <button className="btn sm primary" onClick={cancelDeletion}>Hủy yêu cầu xóa</button>
         </div>
       )}
 
@@ -67,70 +101,70 @@ export default function Security() {
           <label className="field">Email đăng nhập<input className="input" value={user.email} disabled /></label>
           <div className="field">Trạng thái email
             {user.emailVerifiedAt
-              ? <span className="row small" style={{ gap: 6, color: 'var(--green)' }}><MailCheck size={16} /> Đã xác minh {new Date(user.emailVerifiedAt).toLocaleDateString('vi-VN')}</span>
-              : <span className="row small wrap" style={{ gap: 6, color: '#b45309' }}><MailWarning size={16} /> Chưa xác minh (còn {daysLeft} ngày) <button className="btn sm" onClick={() => { auth.resendVerification(); toast('Đã gửi lại email xác minh'); }}>Gửi lại</button></span>}
+              ? <span className="row small" style={{ gap: 6, color: 'var(--green)' }}><MailCheck size={16} /> Đã xác minh {date(user.emailVerifiedAt)}</span>
+              : <span className="row small wrap" style={{ gap: 6, color: '#b45309' }}><MailWarning size={16} /> Chưa xác minh (còn {daysLeft} ngày) <button className="btn sm" onClick={resend}>Gửi lại</button></span>}
           </div>
         </div>
-        {!user.emailVerifiedAt && <DemoMailbox email={user.email} purposes={['verify']} />}
-        <div className="row small muted" style={{ gap: 6 }}>Vai trò: <Status tone="blue">{user.role === 'ADMIN' ? 'Admin (chủ shop)' : user.role}</Status> · Cửa hàng: <b>{user.shopName}</b></div>
-        <div><button className="btn primary" disabled={!profile.fullName.trim()} onClick={() => { auth.updateProfile(profile); toast('Đã lưu hồ sơ'); }}>Lưu hồ sơ</button></div>
+        {shop && <div className="row small muted" style={{ gap: 6 }}>Vai trò: <Status tone="blue">{ROLE_LABEL[shop.role]}{shop.isOwner ? ' (chủ shop)' : ''}</Status> · Cửa hàng: <b>{shop.name}</b></div>}
+        <div><button className="btn primary" disabled={profile.fullName.trim().length < 2} onClick={saveProfile}>Lưu hồ sơ</button></div>
       </Card>
 
-      <Card icon={KeyRound} title="Đổi mật khẩu" desc={`Lần đổi gần nhất: ${fmtDate(user.passwordChangedAt)}`}>
+      <Card icon={KeyRound} title="Đổi mật khẩu" desc="Sau khi đổi, các thiết bị khác sẽ bị đăng xuất.">
         <form onSubmit={changePassword} className="form-grid" noValidate>
           <label className="field" style={{ gridColumn: '1 / -1' }}>Mật khẩu hiện tại<input className="input" type="password" autoComplete="current-password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} /></label>
           <label className="field">Mật khẩu mới<input className="input" type="password" autoComplete="new-password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
             {pw.next && <span className="small" style={{ color: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#16a34a'][passwordStrength(pw.next)] }}>{passwordIssues(pw.next, user.email).join(', ') || 'Mật khẩu đạt yêu cầu'}</span>}
           </label>
           <label className="field">Nhập lại mật khẩu mới<input className="input" type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} /></label>
-          <label className="row small" style={{ gridColumn: '1 / -1' }}><input type="checkbox" checked={pw.signOutOthers} onChange={(e) => setPw({ ...pw, signOutOthers: e.target.checked })} /> Đăng xuất khỏi tất cả thiết bị khác</label>
           {pwError && <div className="field-error" style={{ gridColumn: '1 / -1' }}>{pwError}</div>}
           <div><button className="btn primary" disabled={!pw.current || !pw.next}>Đổi mật khẩu</button></div>
         </form>
       </Card>
 
-      <Card icon={Monitor} title={`Thiết bị đang đăng nhập (${sessions.length})`} desc="Nếu thấy thiết bị lạ, hãy đăng xuất thiết bị đó và đổi mật khẩu ngay.">
+      <Card icon={Monitor} title={`Thiết bị đang đăng nhập (${list.length})`} desc="Nếu thấy thiết bị lạ, hãy đăng xuất thiết bị đó và đổi mật khẩu ngay.">
         <div className="device-list">
-          {sessions.map((s) => {
-            const current = s.id === client.sessionId;
+          {sessions.isError && <div className="field-error">{sessions.error.message}</div>}
+          {list.map((s) => {
             const Icon = s.platform === 'WEB' ? Monitor : Smartphone;
             return (
-              <div key={s.id} className={`device-row ${current ? 'current' : ''}`}>
+              <div key={s.id} className={`device-row ${s.current ? 'current' : ''}`} data-testid="device-row">
                 <Icon size={22} />
                 <div className="grow">
-                  <div><b>{s.deviceName}</b> {current && <Status tone="green">Thiết bị này</Status>}</div>
-                  <div className="muted small">{PLATFORM[s.platform]} · IP {s.ip} · Đăng nhập {fmtDate(s.createdAt)} · {current ? 'Đang hoạt động' : ago(s.lastUsedAt)} · Hết hạn {new Date(s.expiresAt).toLocaleDateString('vi-VN')}</div>
+                  <div><b>{s.deviceName || PLATFORM[s.platform]}</b> {s.current && <Status tone="green">Thiết bị này</Status>}</div>
+                  <div className="muted small">{PLATFORM[s.platform]} · IP {s.ip || 'không rõ'} · {s.current ? 'Đang hoạt động' : ago(s.lastUsedAt)} · Hết hạn {date(s.expiresAt)}</div>
                 </div>
-                <button className="btn sm" onClick={() => { auth.revokeSession(s.id); if (!current) toast('Đã đăng xuất thiết bị'); }}><LogOut size={13} /> {current ? 'Đăng xuất' : 'Đăng xuất thiết bị'}</button>
+                {s.current
+                  ? <button className="btn sm" onClick={() => auth.logout()}><LogOut size={13} /> Đăng xuất</button>
+                  : <button className="btn sm" onClick={() => revoke.mutate(s.id)}><LogOut size={13} /> Đăng xuất thiết bị</button>}
               </div>
             );
           })}
         </div>
         <div className="row wrap">
-          <button className="btn" disabled={sessions.length < 2} onClick={() => { const n = auth.revokeOthers(); toast(`Đã đăng xuất ${n} thiết bị khác`); }}>Đăng xuất tất cả thiết bị khác</button>
+          <button className="btn" disabled={list.length < 2} onClick={others}>Đăng xuất tất cả thiết bị khác</button>
           <button className="btn danger" onClick={() => confirm('Đăng xuất khỏi mọi thiết bị, kể cả máy này?') && auth.logoutAll()}>Đăng xuất mọi thiết bị</button>
         </div>
-        <div className="muted small">Phiên web: mã truy cập hết hạn sau 15 phút và được làm mới tự động; mã làm mới đổi sau mỗi lần dùng. Thiết bị bị đăng xuất sẽ mất quyền truy cập ngay ở lần kiểm tra kế tiếp (≤ 30 giây).</div>
+        <div className="muted small">Thiết bị bị đăng xuất mất quyền truy cập ngay ở yêu cầu kế tiếp; màn hình của thiết bị đó tự chuyển về trang đăng nhập trong vòng 30 giây.</div>
       </Card>
 
       <Card icon={ShieldCheck} title="Xác thực 2 lớp (2FA)" desc="Mã 6 số từ ứng dụng Google Authenticator khi đăng nhập. Sẽ bắt buộc với Admin.">
-        <div className="row"><Status>Chưa bật</Status><button className="btn sm" disabled title="Có trong Sprint 4 – cần backend">Bật 2FA (sắp có)</button></div>
+        <div className="row"><Status>Chưa bật</Status><button className="btn sm" disabled title="Có ở Bước 16">Bật 2FA (sắp có)</button></div>
       </Card>
 
       <DataTable
         title="Lịch sử đăng nhập"
-        rows={auth.loginLog()}
+        rows={history.data ?? []}
         pageSizes={[10, 20, 50]}
         exportName="lich-su-dang-nhap"
         columns={[
-          { key: 'at', label: 'Thời gian', render: (r) => fmtDate(r.at), csv: (r) => fmtDate(r.at) },
+          { key: 'createdAt', label: 'Thời gian', render: (r) => fmtDate(new Date(r.createdAt).getTime()), csv: (r) => fmtDate(new Date(r.createdAt).getTime()) },
           { key: 'ok', label: 'Kết quả', render: (r) => (r.ok ? <Status tone="green">Thành công</Status> : <Status tone="red">Thất bại</Status>), csv: (r) => (r.ok ? 'Thành công' : 'Thất bại') },
-          { key: 'reason', label: 'Ghi chú', render: (r) => r.reason || '—' },
-          { key: 'device', label: 'Thiết bị' },
+          { key: 'ip', label: 'IP' },
+          { key: 'userAgent', label: 'Thiết bị' },
         ]}
       />
 
-      <Card icon={Trash2} title="Xóa tài khoản" desc={`Xóa tài khoản và dữ liệu cá nhân của bạn. Có ${DELETE_AFTER_DAYS} ngày để đổi ý (đăng nhập lại để hủy). Chủ shop cần chuyển quyền hoặc xóa cửa hàng trước khi xóa vĩnh viễn.`} danger>
+      <Card icon={Trash2} title="Xóa tài khoản" desc={`Xóa tài khoản và dữ liệu cá nhân của bạn. Có ${DELETE_AFTER_DAYS} ngày để đổi ý (đăng nhập lại để hủy). Chủ shop có nhân viên cần chuyển quyền trước.`} danger>
         <div><button className="btn danger" onClick={() => setDeleting(true)} disabled={!!user.deletionRequestedAt}><Trash2 size={14} /> Yêu cầu xóa tài khoản</button></div>
       </Card>
 

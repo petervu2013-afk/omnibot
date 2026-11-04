@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Eye, EyeOff, Mail, Lock, User, Store, Phone, CheckCircle2, AlertTriangle, ArrowLeft, Sparkles, ShieldCheck, MessageSquare, BarChart3, Inbox } from 'lucide-react';
-import { useAuth, passwordIssues, passwordStrength, isEmail, DEMO_ACCOUNT, MAX_FAILED } from '../../auth.jsx';
+import { Bot, Eye, EyeOff, Mail, Lock, User, Store, Phone, CheckCircle2, AlertTriangle, ArrowLeft, Sparkles, ShieldCheck, MessageSquare, BarChart3 } from 'lucide-react';
+import { useAuth, passwordIssues, passwordStrength, isEmail, MAX_FAILED } from '../../auth.jsx';
+import { CaptchaBox } from './CaptchaBox.jsx';
 import { navigate } from '../../router.js';
 
 const FIELDS = ['Nội thất', 'Thời trang', 'F&B', 'Làm đẹp', 'Bất động sản', 'Giáo dục', 'Khác'];
@@ -71,33 +72,15 @@ function Alert({ tone = 'error', children }) {
   return <div className={`auth-alert ${tone}`}>{tone === 'error' ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}<span>{children}</span></div>;
 }
 
-// Until an email service exists, "sent" emails are shown here so the links can be clicked.
-export function DemoMailbox({ email, purposes }) {
-  const { outbox } = useAuth();
-  const mails = outbox(email).filter((m) => !purposes || purposes.includes(m.purpose)).slice(0, 3);
-  if (!mails.length) return null;
-  return (
-    <div className="demo-mail">
-      <div className="row small" style={{ gap: 6 }}><Inbox size={14} /> <b>Hộp thư demo</b> <span className="muted">– bản demo chưa gửi email thật</span></div>
-      {mails.map((m) => (
-        <div key={m.id} className="demo-mail-item">
-          <div className="small"><b>{m.subject}</b></div>
-          <div className="muted small">Tới {m.to} · {new Date(m.at).toLocaleTimeString('vi-VN')}</div>
-          {m.link && <a className="btn sm primary" href={m.link} style={{ marginTop: 6 }}>Mở liên kết trong email</a>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
+const DEV_ACCOUNT = { email: 'admin@goviet.vn', password: 'Demo@1234' }; // created by: pnpm --filter @omnibot/api db:seed
 
 export function LoginPage() {
   const { login, notice } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(true);
-  const [captcha, setCaptcha] = useState(false);
+  const [captcha, setCaptcha] = useState('');
   const [needCaptcha, setNeedCaptcha] = useState(false);
+  const [captchaRound, setCaptchaRound] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -107,9 +90,15 @@ export function LoginPage() {
     if (!isEmail(email)) return setError('Email không hợp lệ.');
     if (!password) return setError('Vui lòng nhập mật khẩu.');
     setBusy(true);
-    const r = await login({ email, password, remember, captcha });
+    const r = await login({ email, password, captcha });
     setBusy(false);
-    if (r.error) { setError(r.error); setNeedCaptcha(!!r.needCaptcha); setCaptcha(false); }
+    if (r.error) {
+      setError(r.error);
+      setNeedCaptcha(r.code === 'CAPTCHA_REQUIRED' || !!r.details?.captchaRequired);
+      // A captcha token works once: ask for a new one after every failed attempt.
+      setCaptcha('');
+      setCaptchaRound((n) => n + 1);
+    }
     // On success App redirects (to the pending-deletion notice, the "next" page, or Home).
   };
 
@@ -119,17 +108,16 @@ export function LoginPage() {
       <form onSubmit={submit} className="auth-form" noValidate>
         <Field icon={Mail} label="Email"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ban@congty.vn" autoComplete="username" autoFocus /></Field>
         <Field icon={Lock} label={<span className="row between">Mật khẩu <a href="#/forgot" className="small">Quên mật khẩu?</a></span>}><PasswordInput value={password} onChange={setPassword} /></Field>
-        <label className="row small"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Ghi nhớ đăng nhập 30 ngày (bỏ chọn: tự đăng xuất sau 24 giờ)</label>
-        {needCaptcha && (
-          <label className="captcha-box"><input type="checkbox" checked={captcha} onChange={(e) => setCaptcha(e.target.checked)} /> Tôi không phải là người máy <span className="muted small">(demo – thay bằng reCAPTCHA/Turnstile)</span></label>
-        )}
+        {needCaptcha && <CaptchaBox key={captchaRound} onToken={setCaptcha} />}
         {error && <Alert>{error}</Alert>}
         <button className="btn primary auth-submit" disabled={busy}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
       </form>
-      <div className="demo-hint small">
-        Tài khoản demo: <code>{DEMO_ACCOUNT.email}</code> / <code>{DEMO_ACCOUNT.password}</code>
-        <button type="button" className="btn sm" onClick={() => { setEmail(DEMO_ACCOUNT.email); setPassword(DEMO_ACCOUNT.password); }}>Điền sẵn</button>
-      </div>
+      {import.meta.env.DEV && (
+        <div className="demo-hint small">
+          Tài khoản dev: <code>{DEV_ACCOUNT.email}</code> / <code>{DEV_ACCOUNT.password}</code>
+          <button type="button" className="btn sm" onClick={() => { setEmail(DEV_ACCOUNT.email); setPassword(DEV_ACCOUNT.password); }}>Điền sẵn</button>
+        </div>
+      )}
       <p className="muted small" style={{ marginTop: 10 }}>Nhập sai {MAX_FAILED} lần liên tiếp, tài khoản sẽ bị khóa tạm 15 phút.</p>
     </AuthLayout>
   );
@@ -198,10 +186,11 @@ export function ForgotPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     if (!isEmail(email)) return setError('Email không hợp lệ.');
-    requestReset(email);
+    const r = await requestReset(email);
+    if (r.error) return setError(r.error);
     setSent(true);
   };
   return (
@@ -210,7 +199,6 @@ export function ForgotPage() {
         <>
           {/* Same message whether or not the email exists, so accounts can't be discovered. */}
           <Alert tone="info">Nếu <b>{email}</b> đã đăng ký, bạn sẽ nhận được email có liên kết đặt lại mật khẩu. Liên kết có hiệu lực 30 phút và chỉ dùng được một lần.</Alert>
-          <DemoMailbox email={email} purposes={['reset']} />
           <button className="btn auth-submit" onClick={() => setSent(false)}>Gửi lại</button>
         </>
       ) : (
@@ -226,19 +214,20 @@ export function ForgotPage() {
 const tokenFromHash = () => new URLSearchParams(window.location.hash.split('?')[1] || '').get('token') || '';
 
 export function ResetPage() {
-  const { checkToken, resetPassword, db } = useAuth();
+  const { resetPassword } = useAuth();
   const token = tokenFromHash();
   const [pw, setPw] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  const [linkError, setLinkError] = useState(token ? '' : 'Liên kết không hợp lệ.');
   const [done, setDone] = useState(false);
-  const linkError = db ? checkToken(token, 'PASSWORD_RESET') : null;
-  const email = db?.users.find((u) => u.id === db.tokens.find((t) => t.token === token)?.userId)?.email || '';
 
   const submit = async (e) => {
     e.preventDefault();
+    setError('');
     if (pw !== confirm) return setError('Mật khẩu nhập lại không khớp.');
     const r = await resetPassword(token, pw);
+    if (r.code?.startsWith('TOKEN_') || r.code === 'VALIDATION_FAILED') return setLinkError(r.code === 'VALIDATION_FAILED' ? 'Liên kết không hợp lệ.' : r.error);
     if (r.error) return setError(r.error);
     setDone(true);
   };
@@ -250,19 +239,18 @@ export function ResetPage() {
           <Alert tone="info">Đã đổi mật khẩu. Vì lý do bảo mật, bạn đã được đăng xuất khỏi mọi thiết bị.</Alert>
           <button className="btn primary auth-submit" onClick={() => navigate('login')}>Đăng nhập</button>
         </>
-      ) : linkError && !done ? (
+      ) : linkError ? (
         <>
           <Alert>{linkError}</Alert>
           <button className="btn primary auth-submit" onClick={() => navigate('forgot')}>Gửi liên kết mới</button>
         </>
       ) : (
         <form onSubmit={submit} className="auth-form" noValidate>
-          <p className="muted small">Đặt mật khẩu mới cho <b>{email}</b></p>
           <Field icon={Lock} label="Mật khẩu mới"><PasswordInput value={pw} onChange={setPw} autoComplete="new-password" autoFocus /></Field>
-          <StrengthMeter password={pw} email={email} />
+          <StrengthMeter password={pw} />
           <Field icon={Lock} label="Nhập lại mật khẩu mới"><PasswordInput value={confirm} onChange={setConfirm} placeholder="Nhập lại mật khẩu" autoComplete="new-password" /></Field>
           {error && <Alert>{error}</Alert>}
-          <button className="btn primary auth-submit" disabled={passwordIssues(pw, email).length > 0}>Đổi mật khẩu</button>
+          <button className="btn primary auth-submit" disabled={passwordIssues(pw).length > 0}>Đổi mật khẩu</button>
         </form>
       )}
     </AuthLayout>
@@ -273,7 +261,7 @@ export function VerifyPage() {
   const { verifyEmail, ready, user } = useAuth();
   const [result, setResult] = useState(null);
   const ran = useRef(false); // links are single-use: never consume twice (StrictMode runs effects twice in dev)
-  useEffect(() => { if (ready && !ran.current) { ran.current = true; setResult(verifyEmail(tokenFromHash())); } }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ready && !ran.current) { ran.current = true; verifyEmail(tokenFromHash()).then(setResult); } }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <AuthLayout title="Xác minh email">
       {!result ? <p className="muted">Đang xác minh…</p> : result.ok ? (
@@ -287,6 +275,53 @@ export function VerifyPage() {
           <p className="muted small">Đăng nhập rồi bấm "Gửi lại email xác minh" trên thanh thông báo để nhận liên kết mới.</p>
           <button className="btn primary auth-submit" onClick={() => navigate(user ? 'home' : 'login')}>{user ? 'Vào ứng dụng' : 'Đăng nhập'}</button>
         </>
+      )}
+    </AuthLayout>
+  );
+}
+
+export function InvitePage() {
+  const { previewInvite, acceptInvite, user, logout } = useAuth();
+  const token = tokenFromHash();
+  const [info, setInfo] = useState(null);
+  const [f, setF] = useState({ fullName: '', password: '', confirm: '' });
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { previewInvite(token).then(setInfo); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!info.hasAccount && f.password !== f.confirm) return setError('Mật khẩu nhập lại không khớp.');
+    setBusy(true);
+    const r = await acceptInvite({ token, password: f.password, ...(info.hasAccount ? {} : { fullName: f.fullName }) });
+    setBusy(false);
+    if (r.error) return setError(r.error);
+    setDone(r);
+  };
+
+  return (
+    <AuthLayout title="Nhận lời mời" footer={<a href="#/login">Quay lại đăng nhập</a>}>
+      {!info ? <p className="muted">Đang kiểm tra lời mời…</p> : info.error ? <Alert>{info.error}</Alert> : done ? (
+        <>
+          <Alert tone="info">Bạn đã tham gia cửa hàng <b>{done.shopName}</b>. {user ? 'Hãy đăng nhập lại để thấy cửa hàng mới.' : 'Đăng nhập bằng email được mời để bắt đầu.'}</Alert>
+          <button className="btn primary auth-submit" onClick={async () => { if (user) await logout(); navigate('login'); }}>Đăng nhập</button>
+        </>
+      ) : (
+        <form onSubmit={submit} className="auth-form" noValidate>
+          <p className="muted">Bạn được mời vào <b>{info.shopName}</b> với email <b>{info.email}</b>.</p>
+          {!info.hasAccount && <Field icon={User} label="Họ và tên"><input value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} autoComplete="name" autoFocus /></Field>}
+          <Field icon={Lock} label={info.hasAccount ? 'Mật khẩu tài khoản của bạn' : 'Tạo mật khẩu'}><PasswordInput value={f.password} onChange={(v) => setF({ ...f, password: v })} autoComplete={info.hasAccount ? 'current-password' : 'new-password'} /></Field>
+          {!info.hasAccount && (
+            <>
+              <StrengthMeter password={f.password} email={info.email} />
+              <Field icon={Lock} label="Nhập lại mật khẩu"><PasswordInput value={f.confirm} onChange={(v) => setF({ ...f, confirm: v })} placeholder="Nhập lại mật khẩu" autoComplete="new-password" /></Field>
+            </>
+          )}
+          {error && <Alert>{error}</Alert>}
+          <button className="btn primary auth-submit" disabled={busy || !f.password}>Nhận lời mời</button>
+        </form>
       )}
     </AuthLayout>
   );

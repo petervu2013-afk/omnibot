@@ -38,7 +38,16 @@ export default async function setup({ provide }: GlobalSetupContext) {
   if (!databaseUrl) {
     const port = await freePort();
     const dir = mkdtempSync(join(tmpdir(), 'omnibot-pg-'));
-    const pg = new EmbeddedPostgres({ databaseDir: dir, user: 'omnibot', password: 'omnibot', port, persistent: false, onLog: () => {}, initdbFlags: ['--encoding=UTF8', '--locale=C'] });
+    const pg = new EmbeddedPostgres({
+      databaseDir: dir,
+      user: 'omnibot',
+      password: 'omnibot',
+      port,
+      persistent: false,
+      onLog: () => {},
+      initdbFlags: ['--encoding=UTF8', '--locale=C'],
+      postgresFlags: ['-c', 'io_method=sync'],
+    });
     await pg.initialise();
     await pg.start();
     await pg.createDatabase('omnibot_e2e');
