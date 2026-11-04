@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Thử khung chat website</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 640px;
+        margin: 40px auto;
+        padding: 0 16px;
+        color: #0f172a;
+      }
+      code {
+        background: #f1f5f9;
+        padding: 2px 4px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Trang thử khung chat</h1>
+    <p>Trang này đóng vai website của cửa hàng. Mở với <code>?key=wc_...</code> (mã trong Cài đặt → Kênh chat); khung chat hiện ở góc phải dưới.</p>
+    <p id="note"></p>
+    <script>
+      (function () {
+        var key = new URLSearchParams(location.search).get('key');
+        if (!key) {
+          document.getElementById('note').textContent = 'Thiếu ?key=…';
+          return;
+        }
+        var s = document.createElement('script');
+        s.src = '/v1/webchat/widget.js';
+        s.async = true;
+        s.setAttribute('data-site-key', key);
+        s.setAttribute('data-title', 'Nội thất Gỗ Việt');
+        document.body.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

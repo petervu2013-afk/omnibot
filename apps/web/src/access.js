@@ -19,6 +19,7 @@ export const SETTINGS_PERMISSION = {
   info: 'shop.view',
   security: null,
   staff: 'staff.view',
+  channels: 'integration.manage',
   sale: 'shop.manage',
   replies: 'bot.manage',
   plan: 'integration.manage',

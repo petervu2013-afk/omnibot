@@ -1,136 +1,137 @@
+// Livechat: one inbox for every connected channel, live over /live. Conversations and messages come from the API,
+// filtered by the member's data scope (a Sale sees only what the shop setting allows).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Search, Plus, Inbox, MessageCircle, Phone, MapPin, Tag, ShoppingCart, CalendarDays, Bot, Send, Smile, Zap,
-  ArrowLeft, UserRound, ListFilter, Megaphone, UserCog, Sparkles, StickyNote, Theater,
-} from 'lucide-react';
-import { useStore, uid, timeAgo, money, orderTotal, PLATFORMS, AD_PLATFORMS } from '../store.jsx';
-import { useAutoReply } from '../autoReply.js';
-import { aiHealth } from '../ai.js';
-import { Avatar, PlatformIcon, Switch, ChipsInput, ProductCards, EngineTag, useToast } from '../components/ui.jsx';
-import { OrderModal } from './Orders.jsx';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Bot, Inbox, ListFilter, MessageCircle, Phone, Search, Send, Settings, Tag, UserCog, UserRound, WifiOff } from 'lucide-react';
+import { api } from '../api.js';
+import { useAuth } from '../auth.jsx';
+import { Avatar, PlatformIcon, Switch, useToast } from '../components/ui.jsx';
+import { useLive } from '../live.js';
+import { navigate } from '../router.js';
+import { timeAgo } from '../store.jsx';
+import { STAGES } from './pos/Customers.jsx';
 
-const SAMPLE_INCOMING = [
-  'Shop ơi bàn ăn gỗ sồi giá bao nhiêu?', 'Sofa da còn màu nâu không shop', 'Có kệ tivi cho tivi 65 inch không?',
-  'Ghế cafe giá sỉ bao nhiêu shop', 'Giao hàng về Bình Dương mất bao lâu?', 'Mình thấy quảng cáo, tư vấn giúp mình bàn ăn cho 6 người',
-  'Giường gỗ sồi còn hàng không?', 'Hi shop', 'Bảo hành sofa bao lâu vậy?',
+/** API platform → icon key used by the UI kit. */
+export const PLATFORM_KEY = { FACEBOOK: 'facebook', INSTAGRAM: 'instagram', ZALO_OA: 'zalo', TIKTOK_SHOP: 'tiktok', WEBCHAT: 'website' };
+export const PLATFORM_LABEL = { FACEBOOK: 'Facebook', INSTAGRAM: 'Instagram', ZALO_OA: 'Zalo OA', TIKTOK_SHOP: 'TikTok Shop', WEBCHAT: 'Website' };
+const VIEWS = [
+  ['all', 'Tất cả hội thoại', Inbox],
+  ['unread', 'Chưa đọc', MessageCircle],
+  ['mine', 'Giao cho tôi', UserRound],
+  ['handoff', 'Cần nhân viên', UserCog],
 ];
-const RANDOM_NAMES = ['Đặng Gia Huy', 'Bùi Ngọc Mai', 'Hoàng Đức Thịnh', 'Ngô Phương Linh', 'Đỗ Khánh Vy', 'Lý Quốc Bảo'];
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const SENDER_PREFIX = { AGENT: 'Bạn: ', AI: '✨ ', BOT: '🤖 ', SYSTEM: '' };
+const time = (d) => new Date(d).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+const addMessage = (list, m) => (!list || list.some((x) => x.id === m.id) ? list : [...list, m]);
 
 export default function Livechat() {
-  const { state, update, typing } = useStore();
-  const { receive } = useAutoReply();
-  const [activeId, setActiveId] = useState(null);
-  const [query, setQuery] = useState('');
-  const [channelFilter, setChannelFilter] = useState('all');
-  const [view, setView] = useState('all'); // all | unread | ai | handoff
-  const [health, setHealth] = useState(null);
+  const { shop } = useAuth();
+  const qc = useQueryClient();
   const [toast, toastNode] = useToast();
+  const [activeId, setActiveId] = useState(null);
+  const [view, setView] = useState('all');
+  const [channelId, setChannelId] = useState('');
+  const [query, setQuery] = useState('');
+  const [typing, setTyping] = useState({});
+  const typingTimers = useRef({});
+  const base = `/shops/${shop.id}`;
 
-  useEffect(() => { aiHealth(true).then(setHealth); }, []);
+  const channels = useQuery({ queryKey: ['channels', shop.id], queryFn: () => api(`${base}/channels`) });
+  const list = useInfiniteQuery({
+    queryKey: ['conversations', shop.id, view, channelId],
+    initialPageParam: null,
+    queryFn: ({ pageParam }) => api(`${base}/conversations?${new URLSearchParams({ filter: view, limit: '30', ...(channelId ? { channelId } : {}), ...(pageParam ? { cursor: pageParam } : {}) })}`),
+    getNextPageParam: (last) => last.nextCursor,
+  });
+  const refreshList = () => qc.invalidateQueries({ queryKey: ['conversations', shop.id] });
 
-  const customerOf = (v) => state.customers.find((u) => u.id === v.customerId) || { name: 'Khách', tags: [] };
-  const channelOf = (v) => state.channels.find((c) => c.id === v.channelId);
+  const live = useLive(shop.id, {
+    message: ({ conversationId, message }) => {
+      qc.setQueryData(['messages', conversationId], (old) => addMessage(old, message));
+      setTyping((t) => ({ ...t, [conversationId]: false }));
+      refreshList();
+    },
+    conversation: ({ conversationId }) => {
+      refreshList();
+      qc.invalidateQueries({ queryKey: ['conversation', conversationId] });
+    },
+    typing: ({ conversationId }) => {
+      setTyping((t) => ({ ...t, [conversationId]: true }));
+      clearTimeout(typingTimers.current[conversationId]);
+      typingTimers.current[conversationId] = setTimeout(() => setTyping((t) => ({ ...t, [conversationId]: false })), 4000);
+    },
+  });
+  useEffect(() => () => Object.values(typingTimers.current).forEach(clearTimeout), []);
 
-  const list = useMemo(() => state.conversations
-    .filter((v) => channelFilter === 'all' || v.channelId === channelFilter)
-    .filter((v) => view === 'all' || (view === 'unread' ? v.unread > 0 : view === 'ai' ? v.botActive : v.handoff && !v.botActive))
-    .filter((v) => customerOf(v).name.toLowerCase().includes(query.toLowerCase()))
-    .sort((a, b) => (b.messages.at(-1)?.at || 0) - (a.messages.at(-1)?.at || 0))
-    .slice(0, 150),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  [state.conversations, state.customers, query, channelFilter, view]);
-
-  const active = state.conversations.find((v) => v.id === activeId);
-  const handoffCount = state.conversations.filter((v) => v.handoff && !v.botActive && v.status !== 'done').length;
-
-  const open = (id) => {
-    setActiveId(id);
-    update((d) => { d.conversations.find((v) => v.id === id).unread = 0; });
-  };
-
-  // Demo helper: a new customer (sometimes from an ad) messages a random channel; the AI answers on its own.
-  const simulateIncoming = async () => {
-    if (!state.channels.length) return toast('Chưa có kênh nào được kết nối');
-    const text = pick(SAMPLE_INCOMING);
-    const campaign = Math.random() < 0.6 ? pick(state.campaigns) : null;
-    const ch = campaign ? state.channels.find((c) => c.id === campaign.channelId) || pick(state.channels) : pick(state.channels);
-    const custId = uid();
-    const convId = uid();
-    update((d) => {
-      d.customers.push({ id: custId, name: pick(RANDOM_NAMES), phone: '', tags: ['Khách mới'], note: '', address: '', campaignId: campaign?.id || null, firstSeen: Date.now() });
-      d.conversations.push({ id: convId, channelId: ch.id, customerId: custId, unread: 1, botActive: true, campaignId: campaign?.id || null, status: 'open', messages: [] });
-    });
-    toast(`Tin nhắn mới từ ${ch.name}${campaign ? ' (quảng cáo)' : ''}`);
-    const outcome = await receive(convId, text);
-    if (outcome?.handoff) toast('AI đã chuyển một hội thoại cho nhân viên');
-  };
+  const rows = useMemo(() => {
+    const all = list.data?.pages.flatMap((p) => p.items) ?? [];
+    const q = query.trim().toLowerCase();
+    return q ? all.filter((c) => c.customer?.name.toLowerCase().includes(q) || c.customer?.phone?.includes(q)) : all;
+  }, [list.data, query]);
+  const noChannels = channels.isSuccess && channels.data.length === 0;
 
   return (
-    <div className={`livechat ${active ? 'has-active' : ''}`}>
+    <div className={`livechat ${activeId ? 'has-active' : ''}`}>
       <div className="lc-rail">
-        <button className={`icon-btn ${view === 'all' ? 'active' : ''}`} title="Tất cả hội thoại" onClick={() => setView('all')}><Inbox size={18} /></button>
-        <button className={`icon-btn ${view === 'unread' ? 'active' : ''}`} title="Chưa đọc" onClick={() => setView('unread')}><MessageCircle size={18} /></button>
-        <button className={`icon-btn ${view === 'ai' ? 'active' : ''}`} title="AI đang tự động xử lý" onClick={() => setView('ai')}><Bot size={18} /></button>
-        <button className={`icon-btn ${view === 'handoff' ? 'active' : ''}`} title="Cần nhân viên" onClick={() => setView('handoff')}>
-          <UserCog size={18} />{handoffCount > 0 && <span className="dot">{handoffCount}</span>}
-        </button>
+        {VIEWS.map(([key, label, Icon]) => (
+          <button key={key} className={`icon-btn ${view === key ? 'active' : ''}`} title={label} aria-label={label} aria-pressed={view === key} onClick={() => setView(key)}><Icon size={18} /></button>
+        ))}
       </div>
 
       <div className="lc-list">
         <div className="lc-list-head">
-          {health && (
-            <div className={`ai-banner ${health.ai ? 'on' : 'off'}`}>
-              <Sparkles size={15} />
-              <span className="grow">{health.ai ? 'AI Claude đang tự động trả lời' : health.ok ? 'Chưa có API key – dùng AI nội bộ theo danh mục' : 'Chưa chạy server AI – dùng AI nội bộ'}</span>
+          {live.state !== 'online' && (
+            <div className="ai-banner off" role="status">
+              <WifiOff size={15} />
+              <span className="grow">{live.state === 'connecting' ? 'Đang kết nối realtime…' : live.state === 'denied' ? 'Bạn không còn quyền nhận tin realtime ở cửa hàng này.' : 'Mất kết nối realtime, đang thử lại…'}</span>
             </div>
           )}
-          <div className="row">
-            <div className="search grow"><Search size={14} /><input className="input" placeholder="Tìm tên khách..." value={query} onChange={(e) => setQuery(e.target.value)} /></div>
-            <button className="btn sm" title="Giả lập khách nhắn tin" onClick={simulateIncoming}><Plus size={15} /></button>
-          </div>
+          <div className="search"><Search size={14} /><input className="input" placeholder="Tìm tên, SĐT khách…" aria-label="Tìm hội thoại" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
           <div className="row">
             <ListFilter size={14} className="muted" />
-            <select className="select" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}>
-              <option value="all">Tất cả kênh</option>
-              {state.channels.map((c) => <option key={c.id} value={c.id}>{c.name} ({PLATFORMS[c.platform].label})</option>)}
+            <select className="select" aria-label="Lọc kênh" value={channelId} onChange={(e) => setChannelId(e.target.value)}>
+              <option value="">Tất cả kênh</option>
+              {channels.data?.map((c) => <option key={c.id} value={c.id}>{c.name} ({PLATFORM_LABEL[c.platform]})</option>)}
             </select>
           </div>
-          <div className="muted small">{list.length} hội thoại · bấm <b>+</b> để giả lập khách nhắn tin</div>
+          <div className="muted small">{VIEWS.find(([k]) => k === view)[1]} · {rows.length}{list.hasNextPage ? '+' : ''} hội thoại</div>
         </div>
-        <div className="lc-items">
-          {list.length === 0 && <div className="empty small">Không có hội thoại</div>}
-          {list.map((v) => {
-            const cust = customerOf(v);
-            const ch = channelOf(v);
-            const last = v.messages.at(-1);
-            const camp = state.campaigns.find((c) => c.id === v.campaignId);
+        <div className="lc-items" data-testid="conversation-list">
+          {list.isError && <div className="field-error small" style={{ padding: 12 }}>{list.error.message}</div>}
+          {list.isPending && <div className="muted small" style={{ padding: 12 }}>Đang tải…</div>}
+          {list.isSuccess && rows.length === 0 && (
+            <div className="empty small">
+              {noChannels ? <>Chưa kết nối kênh nào.<br /><button className="btn sm" style={{ marginTop: 8 }} onClick={() => navigate('settings/channels')}><Settings size={13} /> Kết nối kênh</button></> : 'Không có hội thoại'}
+            </div>
+          )}
+          {rows.map((c) => {
+            const name = c.customer?.name ?? 'Khách';
+            const key = PLATFORM_KEY[c.channel?.platform];
             return (
-              <div key={v.id} className={`lc-item ${v.id === activeId ? 'active' : ''} ${v.unread ? 'unread' : ''}`} onClick={() => open(v.id)}>
-                <Avatar name={cust.name} />
-                {ch && <span className="platform-dot" style={{ background: '#fff' }}><PlatformIcon platform={ch.platform} size={10} /></span>}
+              <div key={c.id} role="button" tabIndex={0} className={`lc-item ${c.id === activeId ? 'active' : ''} ${c.unreadCount ? 'unread' : ''}`} onClick={() => setActiveId(c.id)} onKeyDown={(e) => e.key === 'Enter' && setActiveId(c.id)}>
+                <Avatar name={name} />
+                {key && <span className="platform-dot" style={{ background: '#fff' }}><PlatformIcon platform={key} size={10} /></span>}
                 <div className="grow" style={{ minWidth: 0 }}>
-                  <div className="row between"><b style={{ fontSize: 13.5 }}>{cust.name}</b><span className="muted small">{last ? timeAgo(last.at) : ''}</span></div>
+                  <div className="row between"><b style={{ fontSize: 13.5 }}>{name}</b><span className="muted small">{c.lastMessage ? timeAgo(new Date(c.lastMessage.createdAt).getTime()) : ''}</span></div>
                   <div className="row between" style={{ gap: 6 }}>
-                    <div className="preview">
-                      {typing[v.id] ? <i>AI đang trả lời…</i> : <>{last?.from === 'ai' ? '✨ ' : last?.from === 'bot' ? '🤖 ' : last?.from === 'agent' ? 'Bạn: ' : ''}{last?.text}</>}
-                    </div>
-                    {v.unread > 0 && <span className="unread-count">{v.unread}</span>}
+                    <div className="preview">{typing[c.id] ? <i>Khách đang nhập…</i> : <>{SENDER_PREFIX[c.lastMessage?.sender] ?? ''}{c.lastMessage?.text}</>}</div>
+                    {c.unreadCount > 0 && <span className="unread-count">{c.unreadCount}</span>}
                   </div>
                   <div className="row small" style={{ marginTop: 3, gap: 6 }}>
-                    {v.handoff && !v.botActive && <span className="badge orange">Cần nhân viên</span>}
-                    {v.botActive && <span className="badge blue">AI</span>}
-                    {camp && <span className="badge" title={camp.name}><Megaphone size={10} /> {AD_PLATFORMS[camp.platform].label}</span>}
+                    {c.handoff && !c.botActive && <span className="badge orange">Cần nhân viên</span>}
+                    {c.botActive && <span className="badge blue">Bot</span>}
+                    {c.assigneeName && <span className="badge" title="Nhân viên phụ trách">{c.assigneeName}</span>}
                   </div>
                 </div>
               </div>
             );
           })}
+          {list.hasNextPage && <button className="btn sm" style={{ margin: 12 }} disabled={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>Tải thêm</button>}
         </div>
       </div>
 
-      {active ? (
-        <Thread key={active.id} conv={active} customer={customerOf(active)} channel={channelOf(active)} onBack={() => setActiveId(null)} toast={toast} />
+      {activeId ? (
+        <Thread key={activeId} id={activeId} typing={!!typing[activeId]} onTyping={() => live.emitTyping(activeId)} onBack={() => setActiveId(null)} toast={toast} refreshList={refreshList} />
       ) : (
         <div className="lc-empty">
           <div className="bubble-icon"><MessageCircle size={34} /></div>
@@ -143,145 +144,147 @@ export default function Livechat() {
   );
 }
 
-function Thread({ conv, customer, channel, onBack, toast }) {
-  const { state, update, typing } = useStore();
-  const { receive, respond } = useAutoReply();
+function Thread({ id, typing, onTyping, onBack, toast, refreshList }) {
+  const { shop, can } = useAuth();
+  const qc = useQueryClient();
+  const base = `/shops/${shop.id}/conversations/${id}`;
   const [text, setText] = useState('');
-  const [roleplay, setRoleplay] = useState(false);
-  const [orderOpen, setOrderOpen] = useState(false);
+  const [older, setOlder] = useState({ loading: false, done: false });
+  const lastTyping = useRef(0);
   const bodyRef = useRef(null);
-  const isTyping = !!typing[conv.id];
-  useEffect(() => { bodyRef.current?.scrollTo(0, bodyRef.current.scrollHeight); }, [conv.messages.length, isTyping]);
 
-  const setConv = (fn) => update((d) => fn(d.conversations.find((v) => v.id === conv.id)));
-  const setCustomer = (fn) => update((d) => fn(d.customers.find((u) => u.id === customer.id)));
-  const campaign = state.campaigns.find((c) => c.id === conv.campaignId);
+  const conv = useQuery({ queryKey: ['conversation', id], queryFn: () => api(base) });
+  const messages = useQuery({ queryKey: ['messages', id], queryFn: () => api(`${base}/messages?limit=50`), staleTime: Infinity });
+  const assignable = can('lead.assign') && can('staff.view');
+  const members = useQuery({ queryKey: ['members', shop.id], queryFn: () => api(`/shops/${shop.id}/members`), enabled: assignable });
+  const count = messages.data?.length ?? 0;
 
-  const send = async () => {
-    const v = text.trim();
-    if (!v) return;
-    setText('');
-    if (roleplay) {
-      const outcome = await receive(conv.id, v);
-      if (outcome?.orderId) toast(`AI đã tự tạo đơn #${outcome.orderId}`);
-      if (outcome?.handoff) toast('AI chuyển hội thoại cho nhân viên');
-      return;
+  useEffect(() => { bodyRef.current?.scrollTo(0, bodyRef.current.scrollHeight); }, [count, typing]);
+  // Opening the conversation (or a new customer message while it is open) marks it read.
+  const unread = conv.data?.unreadCount ?? 0;
+  useEffect(() => {
+    if (unread > 0 && document.visibilityState === 'visible') api(`${base}/read`, { method: 'POST' }).then(refreshList).catch(() => {});
+  }, [unread, count, base]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onError = (err) => { toast(err.message); qc.invalidateQueries({ queryKey: ['conversation', id] }); };
+  const send = useMutation({
+    mutationFn: (body) => api(`${base}/messages`, { method: 'POST', body }),
+    onSuccess: (m) => { qc.setQueryData(['messages', id], (old) => addMessage(old, m)); qc.invalidateQueries({ queryKey: ['conversation', id] }); refreshList(); },
+    onError: (err, body) => { setText((t) => t || body.text); toast(err.message); },
+  });
+  const patch = useMutation({ mutationFn: (body) => api(base, { method: 'PATCH', body }), onSuccess: () => { qc.invalidateQueries({ queryKey: ['conversation', id] }); refreshList(); }, onError });
+  const assign = useMutation({ mutationFn: (assigneeId) => api(`${base}/assign`, { method: 'POST', body: { assigneeId } }), onSuccess: () => { toast('Đã giao hội thoại'); qc.invalidateQueries({ queryKey: ['conversation', id] }); refreshList(); }, onError });
+
+  const loadOlder = async () => {
+    const first = messages.data?.[0];
+    if (!first) return;
+    setOlder({ loading: true, done: false });
+    try {
+      const page = await api(`${base}/messages?limit=50&before=${first.id}`);
+      qc.setQueryData(['messages', id], (old) => [...page.filter((m) => !old.some((x) => x.id === m.id)), ...old]);
+      setOlder({ loading: false, done: page.length < 50 });
+    } catch (err) {
+      setOlder({ loading: false, done: false });
+      toast(err.message);
     }
-    // A human reply takes over the conversation from the AI.
-    setConv((c) => { c.messages.push({ id: uid(), from: 'agent', text: v, at: Date.now() }); c.botActive = false; });
   };
-  const toggleAi = (on) => {
-    setConv((c) => { c.botActive = on; if (on) c.handoff = false; });
-    if (on && conv.messages.at(-1)?.from === 'customer') setTimeout(() => respond(conv.id), 0);
+
+  const submit = () => {
+    const v = text.trim();
+    if (!v || send.isPending) return;
+    setText('');
+    send.mutate({ text: v });
   };
   const onChange = (e) => {
-    const v = e.target.value;
-    const saved = !roleplay && state.savedReplies.find((s) => v.trim() === s.shortcut);
-    setText(saved ? saved.text : v);
+    setText(e.target.value);
+    const now = Date.now();
+    if (now - lastTyping.current > 2000) { lastTyping.current = now; onTyping(); }
   };
-  const suggestions = !roleplay && text.startsWith('/') ? state.savedReplies.filter((s) => s.shortcut.startsWith(text.trim())) : [];
-  const orders = state.orders.filter((o) => o.customerId === customer.id);
+
+  if (conv.isError) {
+    return <div className="lc-empty"><div className="field-error">{conv.error.message}</div><button className="btn sm" onClick={onBack}>Quay lại</button></div>;
+  }
+  const c = conv.data;
+  const customer = c?.customer;
+  const closed = c?.status === 'closed';
+  const disconnected = channelsDisconnected(qc, shop.id, c?.channelId);
 
   return (
     <>
       <div className="lc-thread">
         <div className="lc-thread-head">
-          <button className="icon-btn" onClick={onBack} title="Quay lại"><ArrowLeft size={18} /></button>
-          <Avatar name={customer.name} size="sm" />
+          <button className="icon-btn" onClick={onBack} title="Quay lại" aria-label="Quay lại"><ArrowLeft size={18} /></button>
+          <Avatar name={customer?.name ?? '?'} size="sm" />
           <div className="grow" style={{ minWidth: 0 }}>
-            <b>{customer.name}</b>
+            <b data-testid="thread-name">{customer?.name ?? '…'}</b>
             <div className="muted small row" style={{ gap: 4 }}>
-              {channel && <PlatformIcon platform={channel.platform} size={12} />} {channel?.name}
-              {campaign && <> · <Megaphone size={11} /> {campaign.name}</>}
+              {c?.channel && <PlatformIcon platform={PLATFORM_KEY[c.channel.platform]} size={12} />} {c?.channel?.name}
             </div>
           </div>
-          <div className="row small"><Switch on={conv.botActive} onChange={toggleAi} /> AI tự động</div>
+          {c && <div className="row small" title="Bot tự động trả lời (kịch bản/AI có ở Bước 6)"><Switch on={c.botActive} onChange={(on) => patch.mutate({ botActive: on })} /> <Bot size={14} /> Bot</div>}
+          {c && <button className="btn sm" onClick={() => patch.mutate({ status: closed ? 'open' : 'closed' })}>{closed ? 'Mở lại' : 'Đóng hội thoại'}</button>}
         </div>
-        {conv.handoff && !conv.botActive && (
-          <div className="ai-banner off" style={{ borderRadius: 0 }}><UserCog size={15} /> AI đã chuyển cho nhân viên: {conv.handoffReason || 'cần hỗ trợ'}</div>
-        )}
-        <div className="lc-messages" ref={bodyRef}>
-          {conv.messages.map((m) => (
-            <div key={m.id} className={`msg ${m.from === 'customer' ? 'in' : 'out'} ${m.from === 'bot' ? 'bot' : ''} ${m.from === 'ai' ? 'ai' : ''}`}>
-              <div className="bubble">{m.text}</div>
-              {m.productIds?.length > 0 && <ProductCards ids={m.productIds} products={state.products} />}
-              {m.buttons?.length > 0 && <div className="msg-buttons">{m.buttons.map((b) => <span key={b}>{b}</span>)}</div>}
-              <span className="meta">
-                {m.from === 'ai' ? <><EngineTag meta={m.meta} /> · </> : m.from === 'bot' ? '🤖 Kịch bản · ' : m.from === 'agent' ? 'Nhân viên · ' : ''}
-                {new Date(m.at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
-              </span>
+        {c?.handoff && !c.botActive && <div className="ai-banner off" style={{ borderRadius: 0 }}><UserCog size={15} /> Bot đã chuyển cho nhân viên: {c.handoffReason || 'cần hỗ trợ'}</div>}
+        <div className="lc-messages" ref={bodyRef} data-testid="messages">
+          {count >= 50 && !older.done && <button className="btn sm" style={{ alignSelf: 'center' }} disabled={older.loading} onClick={loadOlder}>Tải tin cũ hơn</button>}
+          {messages.isPending && <div className="muted small">Đang tải…</div>}
+          {messages.data?.map((m) => (
+            <div key={m.id} className={`msg ${m.sender === 'CUSTOMER' ? 'in' : 'out'} ${m.sender === 'BOT' ? 'bot' : ''} ${m.sender === 'AI' ? 'ai' : ''}`}>
+              <div className="bubble">
+                {m.text}
+                {Array.isArray(m.attachments) && m.attachments.map((a) => <div key={a.url}><a href={a.url} target="_blank" rel="noopener noreferrer nofollow">[{a.type}]</a></div>)}
+              </div>
+              <span className="meta">{m.sender === 'AGENT' ? 'Nhân viên · ' : m.sender === 'BOT' ? 'Kịch bản · ' : m.sender === 'AI' ? 'AI · ' : ''}{time(m.createdAt)}</span>
             </div>
           ))}
-          {typing[conv.id] && <div className="typing">AI đang soạn <i /><i /><i /></div>}
+          {typing && <div className="typing">Khách đang nhập <i /><i /><i /></div>}
         </div>
         <div className="lc-composer">
-          {suggestions.length > 0 && (
-            <div className="saved-suggest">
-              {suggestions.map((s) => <button key={s.id} className="btn sm" onClick={() => setText(s.text)}><Zap size={12} /> {s.shortcut}</button>)}
-            </div>
-          )}
-          {roleplay && <div className="roleplay">Chế độ thử: bạn đang nhắn với vai <b>khách hàng</b> – AI sẽ tự trả lời, thu SĐT và chốt đơn.</div>}
+          {disconnected && <div className="roleplay">Kênh này đã ngắt kết nối — không gửi được tin.</div>}
           <textarea
             value={text}
             onChange={onChange}
-            placeholder={roleplay ? 'Nhập tin nhắn của khách hàng…' : 'Nhập tin nhắn... (Enter để gửi, gõ / để dùng tin nhắn mẫu)'}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            aria-label="Nội dung tin nhắn"
+            maxLength={2000}
+            placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng)"
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
           />
           <div className="row">
-            <button className={`btn sm ${roleplay ? 'outline-primary' : ''}`} title="Nhập vai khách hàng để thử AI" onClick={() => setRoleplay(!roleplay)}><Theater size={14} /> Nhập vai khách</button>
-            <button className="icon-btn" title="Emoji" onClick={() => setText((t) => t + '😊')}><Smile size={17} color="var(--muted)" /></button>
-            {!roleplay && <button className="icon-btn" title="Tin nhắn mẫu" onClick={() => setText('/')}><Zap size={17} color="var(--muted)" /></button>}
             <div className="grow" />
-            <button className="btn primary" onClick={send} disabled={!text.trim() || typing[conv.id]}><Send size={15} /> Gửi</button>
+            <button className="btn primary" onClick={submit} disabled={!text.trim() || send.isPending || disconnected}><Send size={15} /> Gửi</button>
           </div>
         </div>
       </div>
 
       <aside className="lc-info">
-        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-          <Avatar name={customer.name} size="lg" />
-          <h3>{customer.name}</h3>
-          <div className="chips" style={{ justifyContent: 'center' }}>{customer.tags.map((t) => <span className="tag" key={t}>{t}</span>)}</div>
-        </div>
-        {campaign && (
-          <div className="card-pad" style={{ background: '#f8fafc', borderRadius: 8, padding: 10 }}>
-            <div className="muted small">Nguồn quảng cáo</div>
-            <b className="small">{campaign.name}</b>
-          </div>
-        )}
-        <label className="field"><span className="row" style={{ gap: 6 }}><UserRound size={14} /> Họ tên</span>
-          <input className="input" value={customer.name} onChange={(e) => setCustomer((u) => { u.name = e.target.value; })} />
-        </label>
-        <label className="field"><span className="row" style={{ gap: 6 }}><Phone size={14} /> Số điện thoại</span>
-          <input className="input" value={customer.phone} placeholder="AI sẽ tự thu thập" onChange={(e) => setCustomer((u) => { u.phone = e.target.value; })} />
-        </label>
-        <label className="field"><span className="row" style={{ gap: 6 }}><MapPin size={14} /> Địa chỉ</span>
-          <input className="input" value={customer.address || ''} placeholder="AI sẽ tự thu thập" onChange={(e) => setCustomer((u) => { u.address = e.target.value; })} />
-        </label>
-        <div className="field"><span className="row" style={{ gap: 6, fontWeight: 600, fontSize: 13 }}><Tag size={14} /> Nhãn</span>
-          <ChipsInput values={customer.tags} placeholder="Nhãn + Enter" onChange={(v) => setCustomer((u) => { u.tags = v; })} />
-        </div>
-        <label className="field"><span className="row" style={{ gap: 6 }}><StickyNote size={14} /> Ghi chú</span>
-          <textarea className="textarea" value={customer.note} onChange={(e) => setCustomer((u) => { u.note = e.target.value; })} />
-        </label>
-        <div className="row">
-          <button className="btn primary grow" style={{ justifyContent: 'center' }} onClick={() => setOrderOpen(true)}><ShoppingCart size={15} /> Tạo đơn</button>
-          <button className="btn grow" style={{ justifyContent: 'center' }} onClick={() => {
-            const start = new Date(); start.setDate(start.getDate() + 1); start.setHours(9, 0, 0, 0);
-            update((d) => { d.bookings.push({ id: uid(), title: `Hẹn – ${customer.name}`, customerId: customer.id, start: start.getTime(), duration: 60, remind: true }); });
-            toast('Đã tạo lịch hẹn 9:00 ngày mai');
-          }}><CalendarDays size={15} /> Đặt lịch</button>
-        </div>
-        <div>
-          <b className="small">Đơn hàng ({orders.length})</b>
-          {orders.map((o) => (
-            <div key={o.id} className="row between small" style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-              <span>#{o.id} {o.createdBy === 'ai' && <span className="badge blue">AI</span>}</span><span>{money(orderTotal(o, state.products))}</span>
+        {customer && (
+          <>
+            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <Avatar name={customer.name} size="lg" />
+              <h3>{customer.name}</h3>
+              <span className="badge">{STAGES[customer.stage] ?? customer.stage}</span>
+              {customer.tags?.length > 0 && <div className="chips" style={{ justifyContent: 'center' }}>{customer.tags.map((t) => <span className="tag" key={t}><Tag size={10} /> {t}</span>)}</div>}
             </div>
-          ))}
-        </div>
+            <div className="row small" style={{ gap: 6 }}><Phone size={14} /> {customer.phone || <span className="muted">Chưa có SĐT</span>}</div>
+            <button className="btn sm" onClick={() => navigate('orders/customers')}><UserRound size={13} /> Xem danh sách khách hàng</button>
+          </>
+        )}
+        {c && (
+          <label className="field"><span>Nhân viên phụ trách</span>
+            {assignable ? (
+              <select className="select" aria-label="Giao cho nhân viên" value={c.assigneeId ?? ''} disabled={assign.isPending} onChange={(e) => assign.mutate(e.target.value || null)}>
+                <option value="">— Chưa giao —</option>
+                {members.data?.filter((m) => m.status === 'ACTIVE').map((m) => <option key={m.id} value={m.id}>{m.fullName}</option>)}
+              </select>
+            ) : <span className="muted small">{c.assigneeName ?? 'Chưa giao'}</span>}
+          </label>
+        )}
       </aside>
-      {orderOpen && <OrderModal customerId={customer.id} channelId={conv.channelId} campaignId={conv.campaignId} conversationId={conv.id} onClose={() => setOrderOpen(false)} onSaved={(id) => { setOrderOpen(false); toast(`Đã tạo đơn #${id}`); }} />}
     </>
   );
+}
+
+function channelsDisconnected(qc, shopId, channelId) {
+  const channel = qc.getQueryData(['channels', shopId])?.find((ch) => ch.id === channelId);
+  return channel?.status === 'DISCONNECTED';
 }

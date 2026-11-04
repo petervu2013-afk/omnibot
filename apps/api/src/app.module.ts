@@ -9,6 +9,7 @@ import { CoreModule } from './core/core.module.js';
 import { HealthController } from './health/health.controller.js';
 import { MailModule } from './mail/mail.module.js';
 import { MetaController } from './meta.controller.js';
+import { InboxModule } from './inbox/inbox.module.js';
 import { ShopModule } from './shop/shop.module.js';
 
 @Module({
@@ -26,6 +27,7 @@ import { ShopModule } from './shop/shop.module.js';
     AuthModule,
     ShopModule,
     CatalogModule,
+    InboxModule,
   ],
   controllers: [HealthController, MetaController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

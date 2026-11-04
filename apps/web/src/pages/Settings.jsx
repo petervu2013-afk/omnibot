@@ -1,9 +1,10 @@
-import { Store, Users, MessageSquareText, Plug, Lock } from 'lucide-react';
+import { Store, Users, MessageSquareText, MessagesSquare, Plug, Lock } from 'lucide-react';
 import { allowed, SETTINGS_PERMISSION } from '../access.js';
 import { useAuth } from '../auth.jsx';
 import Security from './settings/Security.jsx';
 import ShopInfo from './settings/ShopInfo.jsx';
 import Staff from './settings/Staff.jsx';
+import Channels from './settings/Channels.jsx';
 import { ShieldCheck, Handshake, Package, CalendarClock, CreditCard, Zap, History, Link2, Truck, Boxes, Award } from 'lucide-react';
 import { SideMenu } from '../components/kit.jsx';
 import { navigate } from '../router.js';
@@ -15,6 +16,7 @@ const TABS = [
   { key: 'info', label: 'Thông tin', icon: Store },
   { key: 'security', label: 'Tài khoản & bảo mật', icon: ShieldCheck },
   { key: 'staff', label: 'Nhân viên', icon: Users },
+  { key: 'channels', label: 'Kênh chat', icon: MessagesSquare },
   { key: 'sale', label: 'Sale', icon: Handshake },
   { key: 'replies', label: 'Tin nhắn mẫu', icon: MessageSquareText },
   { key: 'plan', label: 'Gói phần mềm', icon: Package },
@@ -34,7 +36,7 @@ export default function SettingsPage({ tab = 'info' }) {
   const visible = TABS.filter((t) => allowed(can, SETTINGS_PERMISSION[t.key]));
   const current = TABS.some((t) => t.key === tab) ? tab : 'info';
   const page = !shop && current !== 'security' ? null : !allowed(can, SETTINGS_PERMISSION[current]) ? <div className="empty" data-testid="no-access"><Lock size={32} /><p>Bạn không có quyền xem mục này.</p></div> : {
-    info: <ShopInfo />, security: <Security />, staff: <Staff />, sale: <SaleSettings />, replies: <ReplyTemplates />, plan: <PlanSettings />, schedule: <ScheduleSettings />,
+    info: <ShopInfo />, security: <Security />, staff: <Staff />, channels: <Channels />, sale: <SaleSettings />, replies: <ReplyTemplates />, plan: <PlanSettings />, schedule: <ScheduleSettings />,
     payment: <PaymentSettings />, trigger: <Triggers />, history: <SystemHistory />, refsrc: <RefSrc />, shipping: <ShippingSettings />,
     inventory: <InventorySettings />, points: <PointsSettings />, integrations: <Integrations />,
   }[tab] || <ShopInfo />;

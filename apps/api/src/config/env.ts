@@ -46,6 +46,9 @@ export const envSchema = z
           .filter(Boolean),
       ),
     RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
+    // Meta app (Facebook Messenger webhook). Unset: the Facebook webhook answers 404.
+    META_APP_SECRET: z.string().min(16).optional(),
+    META_VERIFY_TOKEN: z.string().min(16).optional(),
   })
   .transform((env) => ({
     ...env,

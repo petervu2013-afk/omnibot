@@ -14,7 +14,9 @@
 | 3 – Phân quyền, Audit log | 🟡 Code **đạt** (70 unit + 126 e2e; ma trận quyền 100% có test; báo cáo `docs/reports/STEP-03.md`) | Người review |
 | 4A – Web: đăng nhập, phân quyền, nhân viên | 🟡 Code **đạt** (12 test trình duyệt; báo cáo `docs/reports/STEP-04A.md`) | Staging. CI thật đã xanh |
 | 4B – Sản phẩm, danh mục, khách hàng lưu DB | 🟡 Code **đạt** (báo cáo `docs/reports/STEP-04B.md`) | CI cho 4B; staging để qua cổng Bước 4 |
-| 5 → 19 | ⬜ Chưa bắt đầu | |
+| 5A – Livechat realtime, chat website, webhook Facebook | 🟡 Code **đạt** (12 e2e mới, 17 test trình duyệt; báo cáo `docs/reports/STEP-05A.md`) | Review; CI |
+| 5B – Zalo, Instagram, TikTok, OAuth Facebook, BullMQ, plugin WordPress, test tải | ⬜ Chờ tài khoản nhà phát triển | App Meta, OA Zalo, TikTok Shop sandbox |
+| 6 → 19 | ⬜ Chưa bắt đầu | |
 
 ---
 
