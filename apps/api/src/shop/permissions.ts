@@ -13,6 +13,7 @@ export const PERMISSIONS = {
   'chat.reply': ['ADMIN', 'MANAGER', 'SALE'],
   'bot.manage': MANAGERS,
   'customer.access': ['ADMIN', 'MANAGER', 'SALE'],
+  'customer.delete': MANAGERS,
   'lead.assign': MANAGERS,
   'order.view': ALL,
   'order.write': ['ADMIN', 'MANAGER', 'SALE'],

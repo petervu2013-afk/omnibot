@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { type Env, validateEnv } from './config/env.js';
 import { AuthModule } from './auth/auth.module.js';
+import { CatalogModule } from './catalog/catalog.module.js';
 import { CoreModule } from './core/core.module.js';
 import { HealthController } from './health/health.controller.js';
 import { MailModule } from './mail/mail.module.js';
@@ -24,6 +25,7 @@ import { ShopModule } from './shop/shop.module.js';
     MailModule,
     AuthModule,
     ShopModule,
+    CatalogModule,
   ],
   controllers: [HealthController, MetaController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

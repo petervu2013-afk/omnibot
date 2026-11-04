@@ -42,24 +42,6 @@ function CrudPage({ title, desc, collection, fields, columns, search, tabs, newL
   );
 }
 
-export function Categories() {
-  const { state } = useStore();
-  const count = (name) => state.products.filter((p) => p.category === name).length;
-  return (
-    <CrudPage
-      title="Danh mục" desc="Nhóm sản phẩm để AI tư vấn, lọc báo cáo và đồng bộ lên Facebook Shop." collection="categories" newLabel="Thêm danh mục"
-      search={(r) => r.name}
-      fields={[{ key: 'name', label: 'Tên danh mục', required: true }, { key: 'description', label: 'Mô tả', type: 'textarea' }, { key: 'active', label: 'Hiển thị', type: 'checkbox' }]}
-      columns={[
-        { key: 'name', label: 'Tên danh mục', render: (r) => <b>{r.name}</b> },
-        { key: 'count', label: 'Số sản phẩm', render: (r) => count(r.name), csv: (r) => count(r.name) },
-        { key: 'description', label: 'Mô tả' },
-        { key: 'active', label: 'Trạng thái', render: (r) => (r.active ? <Status tone="green">Hiển thị</Status> : <Status>Ẩn</Status>), csv: (r) => (r.active ? 'Hiển thị' : 'Ẩn') },
-      ]}
-    />
-  );
-}
-
 export function Combos() {
   const { state, update } = useStore();
   const name = (id) => state.products.find((p) => p.id === id)?.name;
