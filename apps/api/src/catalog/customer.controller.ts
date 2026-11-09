@@ -6,17 +6,13 @@ import { apiError } from '../common/api-error.js';
 import { parse } from '../common/validation.js';
 import { PrismaService } from '../core/prisma.service.js';
 import { Audit, type AuditedRequest } from '../shop/audit.interceptor.js';
-import { dataScope } from '../shop/data-scope.js';
+import { dataScope, inScope } from '../shop/data-scope.js';
 import { currentMember, type MemberContext, Permission, type ShopRequest } from '../shop/permission.guard.js';
+import { IdentityService } from './identity.service.js';
 
 const STAGES = ['NEW', 'CONTACTING', 'CONSULTING', 'QUOTED', 'WON', 'NURTURING', 'LOST'] as const;
 
-/** Vietnamese phone → +84…; null when it is not a valid number. Used to find duplicates across formats. */
-export function normalizePhone(input: string): string | null {
-  const digits = input.replace(/[\s.()-]/g, '');
-  const local = digits.startsWith('+84') ? digits.slice(3) : digits.startsWith('84') && digits.length >= 11 ? digits.slice(2) : digits.startsWith('0') ? digits.slice(1) : null;
-  return local && /^\d{9,10}$/.test(local) ? `+84${local}` : null;
-}
+export { normalizePhone } from './contact.js';
 
 const body = {
   name: z.string().trim().min(1, 'Nhập tên khách hàng').max(200),
@@ -30,6 +26,8 @@ const body = {
 const createSchema = z.strictObject(body);
 const updateSchema = z.strictObject(body).partial();
 const assignSchema = z.strictObject({ ownerId: z.string().max(60).nullable() });
+const mergeSchema = z.strictObject({ intoId: z.string().min(1).max(60) });
+const dismissSchema = z.strictObject({ aId: z.string().min(1).max(60), bId: z.string().min(1).max(60) });
 const listSchema = z.object({
   q: z.string().trim().max(100).optional(),
   stage: z.enum(STAGES).optional(),
@@ -38,18 +36,6 @@ const listSchema = z.object({
 });
 
 const missing = () => apiError(404, 'CUSTOMER_NOT_FOUND', 'Không tìm thấy khách hàng.');
-
-function contact(input: { phone?: string | null; email?: string | null }) {
-  const out: { phone?: string | null; phoneNormalized?: string | null; phoneAt?: Date; email?: string | null; emailNormalized?: string | null } = {};
-  if (input.phone !== undefined) {
-    const phone = input.phone || null;
-    const normalized = phone ? normalizePhone(phone) : null;
-    if (phone && !normalized) throw apiError(400, 'VALIDATION_FAILED', 'Dữ liệu gửi lên không hợp lệ.', [{ field: 'phone', message: 'Số điện thoại không hợp lệ' }]);
-    Object.assign(out, { phone, phoneNormalized: normalized, ...(phone ? { phoneAt: new Date() } : {}) });
-  }
-  if (input.email !== undefined) Object.assign(out, { email: input.email || null, emailNormalized: input.email ? input.email.toLowerCase() : null });
-  return out;
-}
 
 interface CustomerRow {
   id: string;
@@ -69,7 +55,10 @@ const auditView = (c: CustomerRow) => ({ name: c.name, stage: c.stage, ownerId: 
 @Permission('customer.access')
 @Controller('shops/:shopId/customers')
 export class CustomerController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly identity: IdentityService,
+  ) {}
 
   private where(member: MemberContext, extra: Record<string, unknown> = {}) {
     // Merged records live on through the profile they were merged into.
@@ -102,11 +91,9 @@ export class CustomerController {
     }));
   }
 
-  private async assertNoDuplicate(shopId: string, phoneNormalized: string | null | undefined, exceptId?: string) {
-    if (!phoneNormalized) return;
-    // Checked across the whole shop, not the Sale's scope: the same person must not get two profiles.
-    const dup = await this.prisma.db.customer.findFirst({ where: { shopId, phoneNormalized, mergedIntoId: null, ...(exceptId ? { id: { not: exceptId } } : {}) }, select: { id: true } });
-    if (dup) throw apiError(409, 'CUSTOMER_EXISTS', 'Số điện thoại này đã có hồ sơ khách hàng trong cửa hàng.');
+  /** Same phone or email as another profile: checked across the whole shop, so one person never gets two profiles. */
+  private exists() {
+    return apiError(409, 'CUSTOMER_EXISTS', 'Số điện thoại hoặc email này đã có hồ sơ khách hàng trong cửa hàng.');
   }
 
   @Get()
@@ -127,6 +114,34 @@ export class CustomerController {
     return { items: await this.withOwners(member.shopId, page), nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null };
   }
 
+  @Permission('customer.merge')
+  @Get('merge-suggestions')
+  suggestions(@Req() req: ShopRequest) {
+    return this.identity.suggestions(currentMember(req).shopId);
+  }
+
+  @Permission('customer.merge')
+  @Audit('customer.merge_dismiss')
+  @Post('merge-suggestions/dismiss')
+  @HttpCode(204)
+  async dismiss(@Body() input: unknown, @Req() req: AuditedRequest) {
+    const member = currentMember(req);
+    const { aId, bId } = parse(dismissSchema, input);
+    await this.identity.dismiss(member.shopId, aId, bId, member.id);
+    req.audit = { entityType: 'Customer', entityId: aId, after: { notSameAs: bId } };
+  }
+
+  /** Splits a merge again (any profile, any Sale scope: only Admin and Manager may). */
+  @Permission('customer.merge')
+  @Audit('customer.unmerge')
+  @Post('merges/:mergeId/undo')
+  async undo(@Param('mergeId') mergeId: string, @Req() req: AuditedRequest) {
+    const member = currentMember(req);
+    const result = await this.identity.undo(member.shopId, mergeId, member.id);
+    req.audit = { entityType: 'Customer', entityId: result.intoId, after: { unmerged: result.fromId, mergeId } };
+    return result;
+  }
+
   @Get(':customerId')
   async get(@Param('customerId') id: string, @Req() req: ShopRequest) {
     const member = currentMember(req);
@@ -138,8 +153,8 @@ export class CustomerController {
   async create(@Body() input: unknown, @Req() req: AuditedRequest) {
     const member = currentMember(req);
     const { phone, email, ...data } = parse(createSchema, input);
-    const reach = contact({ phone, email });
-    await this.assertNoDuplicate(member.shopId, reach.phoneNormalized);
+    const reach = this.identity.contact({ phone, email });
+    if ((await this.identity.duplicates(member.shopId, null, reach.phoneNormalized, reach.emailNormalized)).length) throw this.exists();
     // A Sale owns what they add, otherwise it could fall outside their own scope.
     const row = await this.prisma.db.customer.create({ data: { ...data, ...reach, shopId: member.shopId, ownerId: member.role === 'SALE' ? member.id : null } });
     req.audit = { entityType: 'Customer', entityId: row.id, after: auditView(row) };
@@ -152,14 +167,41 @@ export class CustomerController {
     const member = currentMember(req);
     const { phone, email, ...data } = parse(updateSchema, input);
     const before = await this.find(member, id);
-    const reach = contact({ phone, email });
-    await this.assertNoDuplicate(member.shopId, reach.phoneNormalized, id);
+    const reach = this.identity.contact({ phone, email });
+    // ID-01: a phone/email another profile already has means the same person → the two are merged. Only when the caller
+    // may see that other profile; otherwise it stays a conflict, without saying whose it is.
+    const dups = await this.identity.duplicates(member.shopId, id, reach.phoneNormalized, reach.emailNormalized);
+    if (dups.some((d) => !inScope(member, d.ownerId))) throw this.exists();
     const row = await this.prisma.db.customer.update({
       where: { shopId: member.shopId, id },
       data: { ...data, ...reach, ...(data.stage && data.stage !== before.stage ? { stageChangedAt: new Date() } : {}) },
     });
     req.audit = { entityType: 'Customer', entityId: id, before: auditView(before), after: auditView(row) };
-    return (await this.withOwners(member.shopId, [row]))[0];
+    if (!dups.length) return (await this.withOwners(member.shopId, [row]))[0];
+    const { customerId, merges } = await this.identity.autoMerge(member.shopId, id, member.id);
+    const survivor = await this.prisma.db.customer.findFirstOrThrow({ where: { shopId: member.shopId, id: customerId } });
+    return { ...(await this.withOwners(member.shopId, [survivor]))[0], merged: merges.map((m) => ({ logId: m.logId, fromId: m.fromId, intoId: m.intoId, matchedBy: m.matchedBy })) };
+  }
+
+  /** Channels, conversations, orders and merge history of one profile. */
+  @Get(':customerId/profile')
+  async profile(@Param('customerId') id: string, @Req() req: ShopRequest) {
+    const member = currentMember(req);
+    await this.find(member, id);
+    return this.identity.profile(member.shopId, id);
+  }
+
+  /** Manual merge: this profile (and all its history) moves into intoId. */
+  @Permission('customer.merge')
+  @Audit('customer.merge')
+  @Post(':customerId/merge')
+  async merge(@Param('customerId') id: string, @Body() input: unknown, @Req() req: AuditedRequest) {
+    const member = currentMember(req);
+    const { intoId } = parse(mergeSchema, input);
+    const result = await this.identity.merge(member.shopId, id, intoId, { matchedBy: 'manual', auto: false, actorId: member.id });
+    req.audit = { entityType: 'Customer', entityId: intoId, after: { mergedFrom: id, mergeId: result.logId } };
+    const survivor = await this.find(member, intoId);
+    return { ...(await this.withOwners(member.shopId, [survivor]))[0], merged: [result] };
   }
 
   @Permission('lead.assign')

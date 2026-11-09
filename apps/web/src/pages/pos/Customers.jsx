@@ -1,11 +1,12 @@
 // Đơn hàng → Khách hàng: stored in the database. The API returns only what this person may see (Sale data scope).
 import { useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { GitMerge, Plus, Search, Trash2 } from 'lucide-react';
 import { api } from '../../api.js';
 import { useAuth } from '../../auth.jsx';
 import { Avatar, Modal, useToast } from '../../components/ui.jsx';
 import { useDebounced } from '../../useDebounced.js';
+import { CustomerProfile, MergeSuggestions } from './CustomerMerge.jsx';
 
 export const STAGES = { NEW: 'Lead mới', CONTACTING: 'Đang liên hệ', CONSULTING: 'Đang tư vấn', QUOTED: 'Đã báo giá', WON: 'Chốt đơn', NURTURING: 'Nuôi dưỡng', LOST: 'Thất bại' };
 
@@ -18,6 +19,7 @@ export function CustomerList() {
   const [stage, setStage] = useState('');
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState('');
+  const [suggesting, setSuggesting] = useState(false);
   const base = `/shops/${shop.id}/customers`;
   const list = useInfiniteQuery({
     queryKey: ['customers', shop.id, term, stage],
@@ -35,7 +37,8 @@ export function CustomerList() {
       const body = { name, phone: phone || null, email: email || null, address: address || null, tags: tags.split(',').map((t) => t.trim()).filter(Boolean), ...(id ? { stage: s } : {}) };
       return id ? api(`${base}/${id}`, { method: 'PATCH', body }) : api(base, { method: 'POST', body });
     },
-    onSuccess: () => { setDraft(null); toast('Đã lưu khách hàng'); refresh(); },
+    // A phone/email another profile has merges the two (ID-01): the answer is the profile that was kept.
+    onSuccess: (res) => { setDraft(null); toast(res?.merged?.length ? `Đã lưu và gộp với hồ sơ cùng SĐT/email: ${res.name}` : 'Đã lưu khách hàng'); refresh(); },
     onError: (err) => setError(err.code === 'VALIDATION_FAILED' ? err.details.map((d) => d.message).join(', ') : err.message),
   });
   const assign = useMutation({ mutationFn: ({ id, ownerId }) => api(`${base}/${id}/assign`, { method: 'POST', body: { ownerId: ownerId || null } }), onSuccess: refresh, onError: (err) => { toast(err.message); refresh(); } });
@@ -51,6 +54,7 @@ export function CustomerList() {
           <option value="">Mọi giai đoạn</option>
           {Object.entries(STAGES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
+        {can('customer.merge') && <button className="btn" onClick={() => setSuggesting(true)}><GitMerge size={15} /> Đề xuất gộp</button>}
         <button className="btn primary" onClick={() => open({})}><Plus size={15} /> Thêm khách hàng</button>
       </div>
       {list.isError && <div className="field-error" style={{ padding: 14 }}>{list.error.message}</div>}
@@ -94,8 +98,10 @@ export function CustomerList() {
           <label className="field">Địa chỉ<input className="input" value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} /></label>
           <label className="field">Nhãn (cách nhau bằng dấu phẩy)<input className="input" value={draft.tags} onChange={(e) => setDraft({ ...draft, tags: e.target.value })} /></label>
           {error && <div className="field-error">{error}</div>}
+          {draft.id && <CustomerProfile customerId={draft.id} toast={toast} onChanged={refresh} onGone={() => setDraft(null)} />}
         </Modal>
       )}
+      {suggesting && <MergeSuggestions toast={toast} onChanged={refresh} onClose={() => setSuggesting(false)} />}
       {toastNode}
     </div>
   );

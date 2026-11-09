@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: OmniBot API
-  version: 0.6.0
+  version: 0.7.0
   description: Hợp đồng API của backend NestJS. Được bổ sung theo từng bước trong docs/IMPLEMENTATION_PLAN.md (Bước 1 – /health, Bước 2 – /auth/*, ...).
 servers:
   - url: http://localhost:3000
@@ -621,7 +621,7 @@ paths:
         '403': { $ref: '#/components/responses/Failure' }
     post:
       summary: Tạo khách hàng; Sale tự làm người phụ trách (quyền customer.access)
-      description: CUSTOMER_EXISTS (409) khi SĐT đã có trong shop.
+      description: CUSTOMER_EXISTS (409) khi SĐT hoặc email (đã chuẩn hóa) đã có trong shop.
       operationId: customerCreate
       requestBody:
         required: true
@@ -631,6 +631,49 @@ paths:
       responses:
         '201': { description: Đã tạo }
         '400': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/customers/merge-suggestions:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    get:
+      summary: Đề xuất gộp – cặp hồ sơ trùng tên (bỏ dấu, hoa thường), không có SĐT/email khác nhau, chưa bị bác (quyền customer.merge)
+      operationId: customerMergeSuggestions
+      responses:
+        '200': { description: 'Mảng { from, into, reason: name }; from là hồ sơ mới hơn; mỗi hồ sơ có id, name, phone, email, createdAt, channels' }
+        '403': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/customers/merge-suggestions/dismiss:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+    post:
+      summary: Đánh dấu hai hồ sơ không phải cùng người; cặp này không được đề xuất lại (quyền customer.merge)
+      operationId: customerMergeDismiss
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [aId, bId]
+              properties:
+                aId: { type: string }
+                bId: { type: string }
+      responses:
+        '204': { description: Đã ghi nhận }
+        '403': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/customers/merges/{mergeId}/undo:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+      - { name: mergeId, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Tách lại một lần gộp; hội thoại, đơn, hoạt động, điểm và thông tin đã chuyển trở về hồ sơ cũ (quyền customer.merge)
+      description: >-
+        MERGE_NOT_FOUND (404); MERGE_ALREADY_UNDONE (409); MERGE_UNDO_BLOCKED (409) khi hồ sơ nhận đã được gộp tiếp
+        – tách lần gộp mới hơn trước. Cặp vừa tách không được đề xuất gộp lại.
+      operationId: customerMergeUndo
+      responses:
+        '201': { description: '{ fromId, intoId }' }
+        '403': { $ref: '#/components/responses/Failure' }
+        '404': { $ref: '#/components/responses/Failure' }
         '409': { $ref: '#/components/responses/Failure' }
   /v1/shops/{shopId}/customers/{customerId}:
     parameters:
@@ -644,13 +687,17 @@ paths:
         '404': { $ref: '#/components/responses/Failure' }
     patch:
       summary: Sửa khách trong phạm vi (quyền customer.access)
+      description: >-
+        Khi SĐT/email mới trùng hồ sơ khác trong shop, hai hồ sơ được gộp tự động (hồ sơ tạo sau gộp vào hồ sơ tạo trước)
+        và kết quả là hồ sơ còn lại, kèm merged. Hồ sơ trùng nằm ngoài phạm vi của người gọi → CUSTOMER_EXISTS (409),
+        không cho biết hồ sơ nào.
       operationId: customerUpdate
       requestBody:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/CustomerInput' }
       responses:
-        '200': { description: OK }
+        '200': { description: 'Hồ sơ còn lại; merged là mảng { logId, fromId, intoId, matchedBy: phone | email }, rỗng khi không gộp' }
         '404': { $ref: '#/components/responses/Failure' }
         '409': { $ref: '#/components/responses/Failure' }
     delete:
@@ -659,6 +706,39 @@ paths:
       responses:
         '204': { description: Đã xóa }
         '403': { $ref: '#/components/responses/Failure' }
+        '409': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/customers/{customerId}/profile:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+      - { name: customerId, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Hồ sơ 360° – kênh đã nhắn, hội thoại, tổng đơn, các lần gộp còn hiệu lực; ngoài phạm vi trả 404 (quyền customer.access)
+      operationId: customerProfile
+      responses:
+        '200': { description: '{ identities: [{ id, displayName, channel, createdAt }], conversations, orders: { count, total }, merges: [{ id, fromId, fromName, matchedBy, auto, createdAt }] }' }
+        '404': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/customers/{customerId}/merge:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+      - { name: customerId, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Gộp tay hồ sơ này vào intoId (quyền customer.merge)
+      description: MERGE_SAME_CUSTOMER (400); CUSTOMER_NOT_FOUND (404, kể cả hồ sơ shop khác); MERGE_CONFLICT (409) khi một trong hai đã được gộp.
+      operationId: customerMerge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [intoId]
+              properties:
+                intoId: { type: string }
+      responses:
+        '201': { description: '{ logId, fromId, intoId, matchedBy: manual }' }
+        '400': { $ref: '#/components/responses/Failure' }
+        '403': { $ref: '#/components/responses/Failure' }
+        '404': { $ref: '#/components/responses/Failure' }
         '409': { $ref: '#/components/responses/Failure' }
   /v1/shops/{shopId}/customers/{customerId}/assign:
     parameters:

@@ -7,13 +7,11 @@ import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { Avatar, PlatformIcon, Switch, useToast } from '../components/ui.jsx';
 import { useLive } from '../live.js';
+import { PLATFORM_KEY, PLATFORM_LABEL } from '../platforms.js';
 import { navigate } from '../router.js';
 import { timeAgo } from '../store.jsx';
 import { STAGES } from './pos/Customers.jsx';
 
-/** API platform → icon key used by the UI kit. */
-export const PLATFORM_KEY = { FACEBOOK: 'facebook', INSTAGRAM: 'instagram', ZALO_OA: 'zalo', TIKTOK_SHOP: 'tiktok', WEBCHAT: 'website' };
-export const PLATFORM_LABEL = { FACEBOOK: 'Facebook', INSTAGRAM: 'Instagram', ZALO_OA: 'Zalo OA', TIKTOK_SHOP: 'TikTok Shop', WEBCHAT: 'Website' };
 const VIEWS = [
   ['all', 'Tất cả hội thoại', Inbox],
   ['unread', 'Chưa đọc', MessageCircle],
