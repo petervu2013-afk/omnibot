@@ -16,7 +16,8 @@
 | 4B – Sản phẩm, danh mục, khách hàng lưu DB | 🟡 Code **đạt** (báo cáo `docs/reports/STEP-04B.md`) | CI cho 4B; staging để qua cổng Bước 4 |
 | 5A – Livechat realtime, chat website, webhook Facebook | 🟡 Code **đạt** (12 e2e mới, 17 test trình duyệt; báo cáo `docs/reports/STEP-05A.md`) | Review; CI |
 | 5B – Zalo, Instagram, TikTok, OAuth Facebook, BullMQ, plugin WordPress, test tải | ⬜ Chờ tài khoản nhà phát triển | App Meta, OA Zalo, TikTok Shop sandbox |
-| 6 → 19 | ⬜ Chưa bắt đầu | |
+| 6 – Hợp nhất hồ sơ khách | 🟡 Code **đạt** (41 unit, 12 e2e mới, 18 test trình duyệt; báo cáo `docs/reports/STEP-06.md`). Cổng với kênh Facebook/Zalo thật chờ 5B | Review; CI |
+| 7 → 19 | ⬜ Chưa bắt đầu | |
 
 ---
 

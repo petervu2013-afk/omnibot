@@ -14,6 +14,7 @@ export const PERMISSIONS = {
   'bot.manage': MANAGERS,
   'customer.access': ['ADMIN', 'MANAGER', 'SALE'],
   'customer.delete': MANAGERS,
+  'customer.merge': MANAGERS,
   'lead.assign': MANAGERS,
   'order.view': ALL,
   'order.write': ['ADMIN', 'MANAGER', 'SALE'],

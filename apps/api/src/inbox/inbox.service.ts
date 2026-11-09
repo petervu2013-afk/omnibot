@@ -1,6 +1,7 @@
 // CH-05 core: every channel feeds receiveInbound(); agents reply through sendAgentMessage(), which hands the text to
 // the channel's sender. Duplicate webhook deliveries are dropped by the unique Message.externalId.
 import { Injectable, Logger } from '@nestjs/common';
+import { IdentityService } from '../catalog/identity.service.js';
 import { apiError } from '../common/api-error.js';
 import { PrismaService } from '../core/prisma.service.js';
 import type { ChannelPlatform } from '../generated/prisma/client.js';
@@ -41,6 +42,7 @@ export class InboxService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: InboxEvents,
+    private readonly identities: IdentityService,
   ) {}
 
   registerSender(platform: ChannelPlatform, sender: ChannelSender) {
@@ -59,7 +61,7 @@ export class InboxService {
     try {
       return await this.prisma.db.$transaction(async (tx) => {
         const customer = await tx.customer.create({
-          data: { shopId, name: input.displayName?.trim() || 'Khách mới', email: input.profile?.email, emailNormalized: input.profile?.email?.toLowerCase(), phone: input.profile?.phone },
+          data: { shopId, name: input.displayName?.trim() || 'Khách mới' },
         });
         return tx.customerIdentity.create({ data: { shopId, channelId, externalUserId, customerId: customer.id, displayName: input.displayName } });
       });
@@ -78,7 +80,12 @@ export class InboxService {
   async receiveInbound(input: InboundMessage): Promise<{ conversation: ConversationSummary; message: MessageView } | null> {
     const externalId = `${input.platform}:${input.channelId}:${input.externalMessageId}`;
     if (await this.prisma.db.message.findUnique({ where: { externalId }, select: { id: true } })) return null;
-    const identity = await this.identityFor(input);
+    let identity = await this.identityFor(input);
+    // ID-01: a phone or email from the channel joins this person to the profile that already has it.
+    if (input.profile?.phone || input.profile?.email) {
+      const { customerId } = await this.identities.attachContact(input.shopId, identity.customerId, input.profile);
+      identity = { ...identity, customerId };
+    }
     const conv = await this.openConversation(input.shopId, input.channelId, identity);
     const at = input.at ?? new Date();
     let created;

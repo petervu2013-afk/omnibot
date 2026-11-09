@@ -5,7 +5,7 @@ import { Copy, Plus, Unplug } from 'lucide-react';
 import { api } from '../../api.js';
 import { useAuth } from '../../auth.jsx';
 import { Modal, PlatformIcon, useToast } from '../../components/ui.jsx';
-import { PLATFORM_KEY, PLATFORM_LABEL } from '../Livechat.jsx';
+import { PLATFORM_KEY, PLATFORM_LABEL } from '../../platforms.js';
 
 const API_ORIGIN = import.meta.env?.VITE_API_URL || window.location.origin;
 export const embedCode = (siteKey) => `<script src="${API_ORIGIN}/v1/webchat/widget.js" data-site-key="${siteKey}" async></script>`;

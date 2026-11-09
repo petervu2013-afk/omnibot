@@ -245,12 +245,14 @@ model Customer {
   phoneAt         DateTime?
   stageChangedAt  DateTime @default(now())
   mergedIntoId    String?            // khi bị gộp vào hồ sơ khác
+  nameKey         String?            // tên bỏ dấu, chữ thường – DB tự tính (trigger), dùng để đề xuất gộp
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   identities      CustomerIdentity[]
   @@index([shopId, phoneNormalized])
   @@index([shopId, emailNormalized])
   @@index([shopId, stage, ownerId])
+  @@index([shopId, nameKey])
 }
 
 // Mỗi danh tính trên một kênh (PSID Facebook, user_id Zalo, buyer TikTok, visitor webchat)
@@ -275,7 +277,21 @@ model CustomerMergeLog {
   matchedBy   String   // phone | email | manual
   auto        Boolean
   actorId     String?
+  snapshot    Json?    // những gì đã chuyển sang hồ sơ đích, để tách lại đúng
+  undoneAt    DateTime?
+  undoneById  String?
   createdAt   DateTime @default(now())
+  @@index([shopId, intoId])
+  @@index([shopId, fromId])
+}
+model CustomerMergeDismissal {
+  id        String   @id @default(cuid())
+  shopId    String
+  aId       String   // aId < bId
+  bId       String
+  actorId   String?
+  createdAt DateTime @default(now())
+  @@unique([shopId, aId, bId])
 }
 
 model ConsentRecord {
