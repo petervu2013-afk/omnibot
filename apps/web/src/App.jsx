@@ -108,7 +108,7 @@ function Shell({ route, section, param }) {
     default: page = can('dashboard.view') ? <Home /> : <Empty />;
   }
   // Only the settings shown as real are stored on the server; other sections still run on browser sample data (Step 4B onward).
-  const sampleData = section !== 'settings' && !(section === 'orders' && ['products', 'categories', 'customers'].includes(param));
+  const sampleData = section !== 'settings' && section !== 'livechat' && !(section === 'orders' && ['products', 'categories', 'customers'].includes(param));
   if (!shop) page = <NoShop />;
   else if (!allowed(can, PAGE_PERMISSION[section === '' ? 'home' : section] ?? null)) page = <NoAccess home={fallback} />;
   const activeNav = ['templates', 'bot'].includes(section) ? 'dashboard' : NAV.some((n) => n.path === section) ? section : 'home';

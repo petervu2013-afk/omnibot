@@ -18,7 +18,7 @@ async function bootstrap() {
   const logger = createLogger();
   // Imported here so an invalid environment (validated while the module loads) is reported by the catch below.
   const { AppModule } = await import('./app.module.js');
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger, bufferLogs: true, bodyParser: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger, bufferLogs: true, bodyParser: false, rawBody: true });
   configureApp(app);
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port, '0.0.0.0');

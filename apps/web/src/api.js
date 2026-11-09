@@ -17,6 +17,8 @@ let onSessionLost = () => {};
 let refreshing = null;
 
 export const setAccessToken = (token) => { accessToken = token; };
+/** For the realtime socket handshake only; never stored anywhere. */
+export const getAccessToken = () => accessToken;
 export const setSessionLostHandler = (fn) => { onSessionLost = fn; };
 
 async function send(path, { method = 'GET', body } = {}) {

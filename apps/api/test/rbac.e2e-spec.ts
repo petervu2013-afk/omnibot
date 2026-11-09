@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CatalogController } from '../src/catalog/catalog.controller.js';
 import { CustomerController } from '../src/catalog/customer.controller.js';
 import { PrismaService } from '../src/core/prisma.service.js';
+import { InboxController } from '../src/inbox/inbox.controller.js';
 import { MailService } from '../src/mail/mail.service.js';
 import { AuditLogController } from '../src/shop/audit-log.controller.js';
 import { AUDIT_KEY } from '../src/shop/audit.interceptor.js';
@@ -18,6 +19,11 @@ import { createTestApp } from './support/app.js';
 const PASSWORD = 'Go-Viet-2026-an-toan';
 const VERBS = ['get', 'post', 'put', 'delete', 'patch'] as const; // index = Nest RequestMethod
 const run = Date.now().toString(36);
+// Changes that are not audit-logged, with the reason. Everything else that is not a GET must carry @Audit.
+const NOT_AUDITED = new Set([
+  'post /v1/shops/:shopId/conversations/:conversationId/messages', // the message row itself records who sent what, when
+  'post /v1/shops/:shopId/conversations/:conversationId/read', // read marker only
+]);
 let seq = 0;
 
 interface Route {
@@ -28,7 +34,7 @@ interface Route {
 }
 
 function shopRoutes(): Route[] {
-  return [ShopController, AuditLogController, CatalogController, CustomerController].flatMap((ctrl) => {
+  return [ShopController, AuditLogController, CatalogController, CustomerController, InboxController].flatMap((ctrl) => {
     const base = Reflect.getMetadata('path', ctrl) as string;
     return Object.getOwnPropertyNames(ctrl.prototype)
       .map((name) => (ctrl.prototype as unknown as Record<string, object>)[name]!)
@@ -100,7 +106,7 @@ describe('RBAC', () => {
   });
 
   const call = (r: Route, token: string, shop = shopId) => {
-    const url = r.path.replace(':shopId', shop).replace(/:w+/g, 'khong-co');
+    const url = r.path.replace(':shopId', shop).replace(/:\w+/g, 'khong-co');
     return api()[r.verb](url).set(bearer(token));
   };
 
@@ -109,7 +115,7 @@ describe('RBAC', () => {
   it('finds the routes, and each has a permission; each change is audited', () => {
     expect(routes.length).toBeGreaterThanOrEqual(11);
     expect(routes.filter((r) => !r.permission).map((r) => r.path)).toEqual([]);
-    expect(routes.filter((r) => r.verb !== 'get' && !r.audit).map((r) => r.path)).toEqual([]);
+    expect(routes.filter((r) => r.verb !== 'get' && !r.audit && !NOT_AUDITED.has(`${r.verb} ${r.path}`)).map((r) => r.path)).toEqual([]);
   });
 
   describe('role × API', () => {
@@ -133,7 +139,7 @@ describe('RBAC', () => {
         const res = await call(r, actors.outsider.token);
         expect(res.status).toBe(404);
         expect(res.body.error.code).toBe('SHOP_NOT_FOUND');
-        const url = r.path.replace(':shopId', shopId).replace(/:w+/g, 'x');
+        const url = r.path.replace(':shopId', shopId).replace(/:\w+/g, 'x');
         await api()[r.verb](url).expect(401);
       });
     }

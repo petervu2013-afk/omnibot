@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const API = process.env.API_PROXY ?? 'http://localhost:3000';
+
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
     // Same origin in development, so the HttpOnly refresh cookie (SameSite=Strict) works as in production.
-    proxy: { '/api': 'http://localhost:8787', '/v1': process.env.API_PROXY ?? 'http://localhost:3000' },
+    proxy: { '/api': 'http://localhost:8787', '/v1': API, '/socket.io': { target: API, ws: true } },
   },
 });
