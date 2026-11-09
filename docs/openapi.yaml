@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: OmniBot API
-  version: 0.7.0
+  version: 0.8.0
   description: Hợp đồng API của backend NestJS. Được bổ sung theo từng bước trong docs/IMPLEMENTATION_PLAN.md (Bước 1 – /health, Bước 2 – /auth/*, ...).
 servers:
   - url: http://localhost:3000
@@ -321,6 +321,11 @@ paths:
         '404': { $ref: '#/components/responses/Failure' }
     patch:
       summary: Sửa thông tin và cài đặt shop, gồm saleDataScope, assignMode (quyền shop.manage)
+      description: >-
+        assignMode quyết định ai nhận hội thoại mới (AUTH-16). MANUAL – không tự chia. FIRST_VIEW – Sale mở hội thoại
+        chưa giao đầu tiên nhận nó. ROUND_ROBIN_ONLINE – Sale đang online trên Livechat chờ lâu nhất. ROUND_ROBIN_ALL –
+        như trên, kể cả offline. Chỉ Sale đang hoạt động, bật nhận lead và trong ca mới được chia; khách cũ quay lại
+        được chia cho Sale phụ trách họ nếu Sale đó đủ điều kiện.
       operationId: shopUpdate
       requestBody:
         content:
@@ -379,7 +384,7 @@ paths:
       summary: Danh sách nhân viên (quyền staff.view)
       operationId: membersList
       responses:
-        '200': { description: OK }
+        '200': { description: 'Mảng nhân viên; mỗi người có receivesLeads, isOnline (đang mở Livechat), shiftCount, onShift (đang trong ca theo múi giờ shop), lastAssignedAt' }
         '403': { $ref: '#/components/responses/Failure' }
   /v1/shops/{shopId}/members/{memberId}:
     parameters:
@@ -413,6 +418,48 @@ paths:
         '403': { $ref: '#/components/responses/Failure' }
         '404': { $ref: '#/components/responses/Failure' }
         '409': { $ref: '#/components/responses/Failure' }
+  /v1/shops/{shopId}/members/{memberId}/shifts:
+    parameters:
+      - { $ref: '#/components/parameters/ShopId' }
+      - { name: memberId, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Ca làm việc trong tuần và công tắc nhận lead của nhân viên (quyền shift.manage)
+      operationId: memberShiftsGet
+      responses:
+        '200': { description: '{ memberId, receivesLeads, shifts: [{ dayOfWeek, startTime, endTime }] }' }
+        '403': { $ref: '#/components/responses/Failure' }
+        '404': { $ref: '#/components/responses/Failure' }
+    put:
+      summary: Thay cả tuần ca làm việc và/hoặc bật tắt nhận lead (quyền shift.manage)
+      description: >-
+        dayOfWeek 0 = Chủ nhật … 6 = Thứ 7; giờ HH:MM theo múi giờ của shop, endTime sau startTime ("24:00" = hết ngày).
+        Ca qua nửa đêm nhập thành 2 ca. Không đặt ca nào = luôn trong ca. Bỏ shifts thì giữ nguyên ca.
+      operationId: memberShiftsSet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                receivesLeads: { type: boolean }
+                shifts:
+                  type: array
+                  maxItems: 28
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [dayOfWeek, startTime, endTime]
+                    properties:
+                      dayOfWeek: { type: integer, minimum: 0, maximum: 6 }
+                      startTime: { type: string, example: '08:00' }
+                      endTime: { type: string, example: '17:30' }
+      responses:
+        '200': { description: '{ memberId, receivesLeads, shifts }' }
+        '400': { $ref: '#/components/responses/Failure' }
+        '403': { $ref: '#/components/responses/Failure' }
+        '404': { $ref: '#/components/responses/Failure' }
   /v1/shops/{shopId}/invitations:
     parameters:
       - { $ref: '#/components/parameters/ShopId' }
@@ -715,7 +762,7 @@ paths:
       summary: Hồ sơ 360° – kênh đã nhắn, hội thoại, tổng đơn, các lần gộp còn hiệu lực; ngoài phạm vi trả 404 (quyền customer.access)
       operationId: customerProfile
       responses:
-        '200': { description: '{ identities: [{ id, displayName, channel, createdAt }], conversations, orders: { count, total }, merges: [{ id, fromId, fromName, matchedBy, auto, createdAt }] }' }
+        '200': { description: '{ source: { src, ref, campaignId } (nguồn đầu tiên), identities: [{ id, displayName, channel, createdAt }], conversations (kèm src, ref), orders: { count, total }, merges: [{ id, fromId, fromName, matchedBy, auto, createdAt }] }' }
         '404': { $ref: '#/components/responses/Failure' }
   /v1/shops/{shopId}/customers/{customerId}/merge:
     parameters:
@@ -1035,13 +1082,14 @@ paths:
         - { name: limit, in: query, schema: { type: integer, maximum: 100, default: 30 } }
         - { name: cursor, in: query, schema: { type: string } }
       responses:
-        '200': { description: 'items (kèm customer, channel, assigneeName, lastMessage) và nextCursor' }
+        '200': { description: 'items (kèm customer, channel, assigneeName, lastMessage, src, ref, adId) và nextCursor' }
   /v1/shops/{shopId}/conversations/{conversationId}:
     parameters:
       - { $ref: '#/components/parameters/ShopId' }
       - { name: conversationId, in: path, required: true, schema: { type: string } }
     get:
       summary: Chi tiết hội thoại; ngoài phạm vi trả 404 (quyền chat.reply)
+      description: Ở chế độ FIRST_VIEW, Sale mở hội thoại chưa giao sẽ nhận nó; hai Sale mở cùng lúc thì chỉ một người nhận, người kia nhận 404.
       operationId: conversationGet
       responses:
         '200': { description: OK }

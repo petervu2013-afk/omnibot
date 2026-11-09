@@ -10,7 +10,7 @@ import { safeEqual } from '../auth/tokens.js';
 import type { Env } from '../config/env.js';
 import { PrismaService } from '../core/prisma.service.js';
 import { InboxEvents, type MessageView } from './inbox.events.js';
-import { InboxService } from './inbox.service.js';
+import { type Attribution, InboxService } from './inbox.service.js';
 
 const MAX_TEXT = 2000;
 const BURST = { messages: 10, perMs: 10_000 };
@@ -20,6 +20,16 @@ interface VisitorData {
   channelId: string;
   visitorId: string;
   sent: number[];
+  attribution?: Attribution;
+}
+
+/** ?ref= / utm_* sent by the widget: short codes only, anything else is dropped. */
+function attributionOf(raw: unknown): Attribution | undefined {
+  const a = (raw ?? {}) as { ref?: unknown; src?: unknown };
+  const code = (v: unknown) => (typeof v === 'string' && /^[\w.~%+-]{1,100}$/.test(v) ? v : undefined);
+  const ref = code(a.ref);
+  const src = code(a.src)?.toLowerCase();
+  return ref || src ? { ...(ref ? { ref } : {}), src: src ?? 'website' } : undefined;
 }
 
 export const visitorRoom = (channelId: string, visitorId: string) => `visitor:${channelId}:${visitorId}`;
@@ -52,14 +62,14 @@ export class WebchatGateway implements OnGatewayInit, OnGatewayConnection, OnMod
   afterInit(server: Namespace) {
     server.use(async (socket, next) => {
       try {
-        const { siteKey, visitorToken } = socket.handshake.auth as { siteKey?: string; visitorToken?: string };
+        const { siteKey, visitorToken, attribution } = socket.handshake.auth as { siteKey?: string; visitorToken?: string; attribution?: unknown };
         const channel = typeof siteKey === 'string' ? await this.prisma.system.channel.findUnique({ where: { platform_externalId: { platform: 'WEBCHAT', externalId: siteKey } } }) : null;
         if (!channel || channel.status !== 'CONNECTED') return next(new Error('SITE_NOT_FOUND'));
         const allowed = ((channel.botConfig as { allowedOrigins?: string[] })?.allowedOrigins ?? []).map((o) => o.replace(/\/$/, ''));
         const origin = socket.handshake.headers.origin;
         if (allowed.length && (!origin || !allowed.includes(origin))) return next(new Error('ORIGIN_NOT_ALLOWED'));
         const visitorId = this.verify(visitorToken) ?? randomUUID();
-        socket.data = { shopId: channel.shopId, channelId: channel.id, visitorId, sent: [] } satisfies VisitorData;
+        socket.data = { shopId: channel.shopId, channelId: channel.id, visitorId, sent: [], attribution: attributionOf(attribution) } satisfies VisitorData;
         next();
       } catch (err) {
         next(err as Error);
@@ -94,6 +104,7 @@ export class WebchatGateway implements OnGatewayInit, OnGatewayConnection, OnMod
           text,
           displayName: str(payload.name, 100),
           profile: { email: str(payload.email, 254), phone: str(payload.phone, 20) },
+          attribution: data.attribution ?? { src: 'website' },
         });
         reply({ ok: true, duplicate: result === null, message: result?.message });
       } catch (err) {

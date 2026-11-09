@@ -152,11 +152,13 @@ model VerificationToken {
 
 model WorkShift {
   id        String     @id @default(cuid())
+  shopId    String
   memberId  String
-  dayOfWeek Int        // 0 = CN … 6 = T7
+  dayOfWeek Int        // 0 = CN … 6 = T7, theo múi giờ của shop
   startTime String     // "08:00"
-  endTime   String     // "17:30"
+  endTime   String     // "17:30" (sau startTime; ca qua nửa đêm tách thành 2 ca)
   member    ShopMember @relation(fields: [memberId], references: [id])
+  @@index([shopId, memberId])
 }
 
 model AuditLog {
@@ -317,6 +319,9 @@ model Conversation {
   status        String   @default("open")
   unreadCount   Int      @default(0)
   campaignId    String?
+  ref           String?            // ADS-08: ref của link m.me / utm_campaign
+  src           String?            // nguồn: facebook, facebook_ads, website, utm_source…
+  adId          String?            // ads_id khi khách bấm quảng cáo
   lastCustomerMessageAt DateTime?  // dùng cho khung 24h Messenger
   lastMessageAt DateTime?
   createdAt     DateTime @default(now())

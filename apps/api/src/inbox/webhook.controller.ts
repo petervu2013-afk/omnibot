@@ -59,6 +59,8 @@ export class WebhookController {
         text: m.text,
         attachments: m.attachments,
         at: m.at,
+        attribution: m.referral,
+        systemNote: m.referralOnly ? `Khách mở hội thoại qua ${m.referral?.adId ? 'quảng cáo' : 'link'}${m.referral?.ref ? ` (ref: ${m.referral.ref})` : ''}` : undefined,
       });
       if (result) stored++;
     }

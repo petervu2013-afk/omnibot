@@ -1,6 +1,6 @@
 // /v1/shops/* and /v1/invitations/* – contract in docs/openapi.yaml.
 // Every route under /shops/:shopId must have @Permission and every change @Audit (enforced by rbac.e2e-spec.ts).
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Req } from '@nestjs/common';
 import { z } from 'zod';
 import type { AuthedRequest } from '../auth/auth.guard.js';
 import { apiError } from '../common/api-error.js';
@@ -12,6 +12,7 @@ import { PASSWORD_MAX } from '../auth/password.js';
 import { Audit, type AuditedRequest } from './audit.interceptor.js';
 import { currentMember, Permission } from './permission.guard.js';
 import { ShopService } from './shop.service.js';
+import { shiftsSchema } from './shifts.js';
 
 const password = z.string().min(1, 'Nhập mật khẩu').max(PASSWORD_MAX);
 const name = z.string().trim().min(2, 'Nhập tên cửa hàng').max(100);
@@ -106,6 +107,23 @@ export class ShopController {
   @Patch(':shopId/members/:memberId')
   async updateMember(@Param('memberId') memberId: string, @Body() body: unknown, @Req() req: AuditedRequest) {
     const { before, after } = await this.shops.updateMember(currentMember(req), memberId, parse(updateMemberSchema, body));
+    req.audit = { entityType: 'ShopMember', entityId: memberId, before, after };
+    return after;
+  }
+
+  /** AUTH-15/16: a member's weekly shifts and whether they receive new conversations (Admin, Manager). */
+  @Permission('shift.manage')
+  @Get(':shopId/members/:memberId/shifts')
+  shifts(@Param('memberId') memberId: string, @Req() req: AuditedRequest) {
+    return this.shops.shifts(currentMember(req).shopId, memberId);
+  }
+
+  @Permission('shift.manage')
+  @Audit('member.shifts')
+  @Put(':shopId/members/:memberId/shifts')
+  async setShifts(@Param('memberId') memberId: string, @Body() body: unknown, @Req() req: AuditedRequest) {
+    const input = parse(z.strictObject({ shifts: shiftsSchema.shape.shifts.optional(), receivesLeads: z.boolean().optional() }), body);
+    const { before, after } = await this.shops.setShifts(currentMember(req).shopId, memberId, input);
     req.audit = { entityType: 'ShopMember', entityId: memberId, before, after };
     return after;
   }

@@ -20,7 +20,7 @@ export const SETTINGS_PERMISSION = {
   security: null,
   staff: 'staff.view',
   channels: 'integration.manage',
-  sale: 'shop.manage',
+  sale: 'shift.manage', // rules: Admin only (inside the page); shifts and leads: Admin, Manager
   replies: 'bot.manage',
   plan: 'integration.manage',
   schedule: 'shift.manage',

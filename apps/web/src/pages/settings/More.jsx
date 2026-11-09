@@ -1,10 +1,10 @@
-// Shop settings sections: sale permissions, reply templates, plan, schedule, payment, triggers,
-// history, ref & src, shipping fees, inventory and loyalty points.
+// Shop settings sections still on sample data: reply templates, plan, schedule, payment, triggers, history,
+// shipping fees, inventory and loyalty points.
 import { useState } from 'react';
-import { Plus, Trash2, CheckCircle2, Link2, Copy } from 'lucide-react';
-import { useStore, uid, money, AD_PLATFORMS, PLATFORMS } from '../../store.jsx';
+import { Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { useStore, uid, money } from '../../store.jsx';
 import { DataTable, FormModal, Status, fmtDate } from '../../components/kit.jsx';
-import { Switch, PlatformIcon, useToast } from '../../components/ui.jsx';
+import { Switch, useToast } from '../../components/ui.jsx';
 
 function Section({ title, desc, children, onSave }) {
   const [toast, toastNode] = useToast();
@@ -27,37 +27,6 @@ function useDraft(path) {
 
 function Radio({ value, options, onChange }) {
   return <div className="radio-list">{options.map(([k, l]) => <label key={k}><input type="radio" checked={value === k} onChange={() => onChange(k)} /> {l}</label>)}</div>;
-}
-
-export function SaleSettings() {
-  const { state } = useStore();
-  const [v, setV, save] = useDraft('sale');
-  const scope = (key, label, noun) => (
-    <div className="row wrap" style={{ alignItems: 'flex-start', gap: 16 }}>
-      <b className="small" style={{ width: 200 }}>{label}</b>
-      <Radio value={v[key]} onChange={(x) => setV({ ...v, [key]: x })} options={[['all', 'Tất cả'], ['mine', `${noun} của mình`], ['mine_unassigned', `${noun} của mình + chưa có người phụ trách`]]} />
-    </div>
-  );
-  return (
-    <Section title="Phân quyền sale" desc="Quy định phạm vi truy cập dữ liệu và cách chia hội thoại cho bộ phận Sale." onSave={save}>
-      {scope('orders', 'Sale xem được đơn hàng', 'Đơn')}
-      {scope('customers', 'Sale xem được khách hàng', 'Khách')}
-      {scope('conversations', 'Sale xem được hội thoại', 'Hội thoại')}
-      <div className="row wrap" style={{ alignItems: 'flex-start', gap: 16 }}>
-        <b className="small" style={{ width: 200 }}>Chia hội thoại cho nhân viên</b>
-        <Radio value={v.assignMode} onChange={(x) => setV({ ...v, assignMode: x })} options={[['manual', 'Tắt chế độ xoay vòng (phân bằng tay)'], ['first_view', 'Phân cho người bấm xem đầu tiên'], ['rr_online', 'Chia đều cho nhân viên đang online trên Livechat'], ['rr_all', 'Chia đều cho tất cả sale (kể cả offline)']]} />
-      </div>
-      <div>
-        <b className="small">Nhân viên nhận lead</b>
-        {state.staff.filter((s) => s.role === 'Sale').map((s) => (
-          <div key={s.id} className="row" style={{ padding: '6px 0' }}>
-            <span className="grow">{s.name}</span>
-            <Switch on={v.receiving[s.id] !== false} onChange={(on) => setV({ ...v, receiving: { ...v.receiving, [s.id]: on } })} />
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
 }
 
 export function ReplyTemplates() {
@@ -225,38 +194,6 @@ export function SystemHistory() {
         { key: 'action', label: 'Hành động' },
         { key: 'at', label: 'Thời gian', render: (r) => fmtDate(r.at), csv: (r) => fmtDate(r.at) },
       ]} />
-    </>
-  );
-}
-
-export function RefSrc() {
-  const { state } = useStore();
-  const [toast, toastNode] = useToast();
-  const [tab, setTab] = useState('pages');
-  const copy = (t) => { navigator.clipboard?.writeText(t); toast('Đã sao chép'); };
-  return (
-    <>
-      <div style={{ marginBottom: 12 }}><h2>Ref & Src</h2><div className="muted small">Tự động gắn ref (người/chiến dịch giới thiệu) và src (nguồn) vào khách hàng và đơn hàng từ ads_id hoặc page_id, đồng bộ sang CRM và báo cáo.</div></div>
-      <div className="pill-tabs" style={{ marginBottom: 12 }}><button className={tab === 'pages' ? 'active' : ''} onClick={() => setTab('pages')}>Pages</button><button className={tab === 'ads' ? 'active' : ''} onClick={() => setTab('ads')}>Quảng cáo</button></div>
-      {tab === 'pages' ? (
-        <DataTable rows={state.channels.map((c, i) => ({ ...c, stt: i + 1 }))} columns={[
-          { key: 'stt', label: 'TT' },
-          { key: 'name', label: 'Tên page', render: (r) => <span className="row" style={{ gap: 4 }}><PlatformIcon platform={r.platform} /> {r.name}</span> },
-          { key: 'ads', label: 'Ads', render: (r) => state.campaigns.filter((c) => c.channelId === r.id).length },
-          { key: 'ref', label: 'Ref', render: () => 'organic' },
-          { key: 'src', label: 'Src', render: (r) => PLATFORMS[r.platform].label.toLowerCase() },
-          { key: 'up', label: 'Cập nhật cuối', render: (r) => fmtDate(r.connectedAt) },
-        ]} />
-      ) : (
-        <DataTable rows={state.campaigns} columns={[
-          { key: 'name', label: 'Chiến dịch', render: (r) => <b>{r.name}</b> },
-          { key: 'ref', label: 'Ref', render: (r) => <code>{r.id}</code> },
-          { key: 'src', label: 'Src', render: (r) => AD_PLATFORMS[r.platform].label },
-          { key: 'link', label: 'Link gắn mã', render: (r) => { const ch = state.channels.find((c) => c.id === r.channelId); const link = ch?.platform === 'website' ? `https://goviet.vn/?utm_source=${r.platform}&utm_campaign=${r.id}` : `https://m.me/<page>?ref=${r.id}`; return <span className="row small" style={{ gap: 4 }}><code style={{ fontSize: 11 }}>{link}</code><button className="icon-btn" onClick={() => copy(link)}><Copy size={13} /></button></span>; } },
-        ]} />
-      )}
-      <div className="muted small" style={{ marginTop: 8 }}><Link2 size={12} /> Báo cáo "Hiệu quả theo Ref" nằm ở Báo cáo → Khách hàng.</div>
-      {toastNode}
     </>
   );
 }

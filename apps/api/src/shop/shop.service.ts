@@ -13,6 +13,7 @@ import type { Prisma, Role } from '../generated/prisma/client.js';
 import { MailService } from '../mail/mail.service.js';
 import { templates } from '../mail/templates.js';
 import type { MemberContext } from './permission.guard.js';
+import { onShift, type Shift } from './shifts.js';
 
 const INVITE_TTL_MS = 7 * 86_400_000;
 
@@ -119,11 +120,15 @@ export class ShopService {
   // ---------- members ----------
 
   async listMembers(shopId: string) {
-    const rows = await this.prisma.db.shopMember.findMany({
-      where: { shopId },
-      include: { user: { select: { email: true, fullName: true, phone: true, avatarUrl: true } }, shop: { select: { ownerId: true } } },
-      orderBy: { createdAt: 'asc' },
-    });
+    const [rows, shifts] = await Promise.all([
+      this.prisma.db.shopMember.findMany({
+        where: { shopId },
+        include: { user: { select: { email: true, fullName: true, phone: true, avatarUrl: true } }, shop: { select: { ownerId: true, timezone: true } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.db.workShift.findMany({ where: { shopId } }),
+    ]);
+    const now = new Date();
     return rows.map(({ shop, user, ...m }) => ({
       id: m.id,
       userId: m.userId,
@@ -132,6 +137,13 @@ export class ShopService {
       receivesLeads: m.receivesLeads,
       monthlyTarget: m.monthlyTarget,
       isOnline: m.isOnline,
+      lastAssignedAt: m.lastAssignedAt,
+      shiftCount: shifts.filter((x) => x.memberId === m.id).length,
+      onShift: onShift(
+        shifts.filter((x) => x.memberId === m.id),
+        shop.timezone,
+        now,
+      ),
       isOwner: shop.ownerId === m.userId,
       createdAt: m.createdAt,
       ...user,
@@ -154,6 +166,30 @@ export class ShopService {
     return { before: view(target), after: view(updated), memberId: updated.id };
   }
 
+  private async shiftView(shopId: string, memberId: string) {
+    const member = await this.prisma.db.shopMember.findFirst({ where: { shopId, id: memberId }, select: { id: true, receivesLeads: true } });
+    if (!member) throw notFound();
+    const rows = await this.prisma.db.workShift.findMany({ where: { shopId, memberId }, orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }] });
+    return { memberId, receivesLeads: member.receivesLeads, shifts: rows.map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime })) };
+  }
+
+  shifts(shopId: string, memberId: string) {
+    return this.shiftView(shopId, memberId);
+  }
+
+  /** Replaces the member's whole week of shifts when given, and/or sets the "receives leads" switch. */
+  async setShifts(shopId: string, memberId: string, input: { shifts?: Shift[]; receivesLeads?: boolean }) {
+    const before = await this.shiftView(shopId, memberId);
+    await this.prisma.db.$transaction(async (tx) => {
+      if (input.shifts) {
+        await tx.workShift.deleteMany({ where: { shopId, memberId } });
+        if (input.shifts.length) await tx.workShift.createMany({ data: input.shifts.map((x) => ({ ...x, shopId, memberId })) });
+      }
+      if (input.receivesLeads !== undefined) await tx.shopMember.update({ where: { shopId, id: memberId }, data: { receivesLeads: input.receivesLeads } });
+    });
+    return { before, after: await this.shiftView(shopId, memberId) };
+  }
+
   /** Removes a member; their customers and conversations become unassigned. */
   async removeMember(actor: MemberContext, memberId: string) {
     const target = await this.editableMember(actor, memberId);
@@ -162,7 +198,7 @@ export class ShopService {
       await tx.customer.updateMany({ where: { shopId, ownerId: target.id }, data: { ownerId: null } });
       await tx.conversation.updateMany({ where: { shopId, assigneeId: target.id }, data: { assigneeId: null } });
       await tx.order.updateMany({ where: { shopId, ownerId: target.id }, data: { ownerId: null } });
-      await tx.workShift.deleteMany({ where: { memberId: target.id } });
+      await tx.workShift.deleteMany({ where: { shopId, memberId: target.id } });
       await tx.shopMember.delete({ where: { shopId, id: target.id } });
     });
     return { role: target.role, userId: target.userId };
