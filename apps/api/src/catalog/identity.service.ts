@@ -294,15 +294,16 @@ export class IdentityService {
 
   /** Channels, conversations, order totals and merge history of one profile (the 360° header). */
   async profile(shopId: string, customerId: string) {
-    const [identities, conversations, orders, merges] = await Promise.all([
+    const [identities, conversations, orders, merges, customer] = await Promise.all([
       this.prisma.db.customerIdentity.findMany({ where: { shopId, customerId }, orderBy: { createdAt: 'asc' } }),
       this.prisma.db.conversation.findMany({
         where: { shopId, customerId },
         orderBy: { lastMessageAt: { sort: 'desc', nulls: 'last' } },
-        select: { id: true, channelId: true, status: true, lastMessageAt: true, assigneeId: true },
+        select: { id: true, channelId: true, status: true, lastMessageAt: true, assigneeId: true, src: true, ref: true },
       }),
       this.prisma.db.order.aggregate({ where: { shopId, customerId }, _count: { _all: true }, _sum: { total: true } }),
       this.prisma.db.customerMergeLog.findMany({ where: { shopId, intoId: customerId, undoneAt: null }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.db.customer.findFirst({ where: { shopId, id: customerId }, select: { src: true, ref: true, campaignId: true } }),
     ]);
     const channelIds = [...new Set([...identities.map((i) => i.channelId), ...conversations.map((c) => c.channelId)])];
     const [channels, fromCustomers] = await Promise.all([
@@ -311,6 +312,8 @@ export class IdentityService {
     ]);
     const channelOf = new Map(channels.map((c) => [c.id, c]));
     return {
+      // ADS-08: where the customer first came from.
+      source: customer ?? { src: null, ref: null, campaignId: null },
       identities: identities.map((i) => ({ id: i.id, displayName: i.displayName, channel: channelOf.get(i.channelId) ?? null, createdAt: i.createdAt })),
       conversations: conversations.map((c) => ({ ...c, channel: channelOf.get(c.channelId) ?? null })),
       orders: { count: orders._count._all, total: Number(orders._sum.total ?? 0) },

@@ -15,6 +15,14 @@ export const WIDGET_JS = String.raw`(function () {
   var storeKey = 'omnibot:' + siteKey;
   function load(k) { try { return localStorage.getItem(storeKey + ':' + k); } catch (e) { return null; } }
   function save(k, v) { try { localStorage.setItem(storeKey + ':' + k, v); } catch (e) { /* private mode */ } }
+  // ADS-08: where the visitor came from (?ref= / utm_*), kept from the landing page for later pages.
+  function attribution() {
+    var q = new URLSearchParams(location.search), a = {};
+    if (q.get('ref')) a.ref = q.get('ref'); else if (q.get('utm_campaign')) a.ref = q.get('utm_campaign');
+    if (q.get('utm_source')) a.src = q.get('utm_source');
+    if (a.ref || a.src) { save('attr', JSON.stringify(a)); return a; }
+    try { return JSON.parse(load('attr') || 'null') || undefined; } catch (e) { return undefined; }
+  }
 
   var host = document.createElement('div');
   host.setAttribute('data-omnibot', '');
@@ -107,7 +115,7 @@ export const WIDGET_JS = String.raw`(function () {
   function connect() {
     if (socket) return;
     function start() {
-      socket = window.io(base + '/webchat', { auth: { siteKey: siteKey, visitorToken: load('token') || undefined }, transports: ['websocket', 'polling'] });
+      socket = window.io(base + '/webchat', { auth: { siteKey: siteKey, visitorToken: load('token') || undefined, attribution: attribution() }, transports: ['websocket', 'polling'] });
       socket.on('connect', function () { status(''); });
       socket.on('disconnect', function () { status('Mất kết nối, đang thử lại…'); });
       socket.on('connect_error', function (err) {

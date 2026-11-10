@@ -5,11 +5,13 @@ import Security from './settings/Security.jsx';
 import ShopInfo from './settings/ShopInfo.jsx';
 import Staff from './settings/Staff.jsx';
 import Channels from './settings/Channels.jsx';
+import RefSrc from './settings/RefSrc.jsx';
+import SaleRouting from './settings/SaleRouting.jsx';
 import { ShieldCheck, Handshake, Package, CalendarClock, CreditCard, Zap, History, Link2, Truck, Boxes, Award } from 'lucide-react';
 import { SideMenu } from '../components/kit.jsx';
 import { navigate } from '../router.js';
 import {
-  SaleSettings, ReplyTemplates, PlanSettings, ScheduleSettings, PaymentSettings, Triggers, SystemHistory, RefSrc, ShippingSettings, InventorySettings, PointsSettings,
+  ReplyTemplates, PlanSettings, ScheduleSettings, PaymentSettings, Triggers, SystemHistory, ShippingSettings, InventorySettings, PointsSettings,
 } from './settings/More.jsx';
 
 const TABS = [
@@ -36,7 +38,7 @@ export default function SettingsPage({ tab = 'info' }) {
   const visible = TABS.filter((t) => allowed(can, SETTINGS_PERMISSION[t.key]));
   const current = TABS.some((t) => t.key === tab) ? tab : 'info';
   const page = !shop && current !== 'security' ? null : !allowed(can, SETTINGS_PERMISSION[current]) ? <div className="empty" data-testid="no-access"><Lock size={32} /><p>Bạn không có quyền xem mục này.</p></div> : {
-    info: <ShopInfo />, security: <Security />, staff: <Staff />, channels: <Channels />, sale: <SaleSettings />, replies: <ReplyTemplates />, plan: <PlanSettings />, schedule: <ScheduleSettings />,
+    info: <ShopInfo />, security: <Security />, staff: <Staff />, channels: <Channels />, sale: <SaleRouting />, replies: <ReplyTemplates />, plan: <PlanSettings />, schedule: <ScheduleSettings />,
     payment: <PaymentSettings />, trigger: <Triggers />, history: <SystemHistory />, refsrc: <RefSrc />, shipping: <ShippingSettings />,
     inventory: <InventorySettings />, points: <PointsSettings />, integrations: <Integrations />,
   }[tab] || <ShopInfo />;

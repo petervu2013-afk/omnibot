@@ -17,7 +17,9 @@
 | 5A – Livechat realtime, chat website, webhook Facebook | 🟡 Code **đạt** (12 e2e mới, 17 test trình duyệt; báo cáo `docs/reports/STEP-05A.md`) | Review; CI |
 | 5B – Zalo, Instagram, TikTok, OAuth Facebook, BullMQ, plugin WordPress, test tải | ⬜ Chờ tài khoản nhà phát triển | App Meta, OA Zalo, TikTok Shop sandbox |
 | 6 – Hợp nhất hồ sơ khách | 🟡 Code **đạt** (41 unit, 12 e2e mới, 18 test trình duyệt; báo cáo `docs/reports/STEP-06.md`). Cổng với kênh Facebook/Zalo thật chờ 5B | Review; CI |
-| 7 → 19 | ⬜ Chưa bắt đầu | |
+| 7 – AI trả lời tự động | ⬜ Chờ Anthropic API key và hội thoại mẫu | API key; 50 hội thoại mẫu |
+| 8 – Ca làm việc, chia hội thoại, Ref & Src | 🟡 Code **đạt** (16 unit, 11 e2e mới, 19 test trình duyệt; báo cáo `docs/reports/STEP-08.md`). Cổng chạy thử 1 ngày chờ staging | Review; CI; staging |
+| 9 → 19 | ⬜ Chưa bắt đầu | |
 
 ---
 

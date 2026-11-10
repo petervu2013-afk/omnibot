@@ -38,6 +38,7 @@ export function CustomerProfile({ customerId, onChanged, onGone, toast }) {
         <b className="small">Kênh liên hệ:</b>
         {p.identities.length ? p.identities.map((i) => <ChannelTag key={i.id} channel={i.channel} />) : <span className="muted small">Chưa nhắn qua kênh nào</span>}
       </div>
+      {p.source?.src && <div className="small" data-testid="customer-source"><b>Nguồn đầu tiên:</b> {p.source.src}{p.source.ref ? <> · ref <code>{p.source.ref}</code></> : null}</div>}
       <div className="row wrap small" style={{ gap: 14 }}>
         <span><MessageSquare size={13} /> {p.conversations.length} hội thoại</span>
         <span>{p.orders.count} đơn · {money(p.orders.total)}</span>

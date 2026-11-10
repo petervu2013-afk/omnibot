@@ -8,6 +8,7 @@ import type { ChannelPlatform } from '../generated/prisma/client.js';
 import type { MemberContext } from '../shop/permission.guard.js';
 import { dataScope } from '../shop/data-scope.js';
 import { type ConversationSummary, InboxEvents, type MessageView } from './inbox.events.js';
+import { RoutingService } from './routing.service.js';
 
 export interface InboundMessage {
   channelId: string;
@@ -20,6 +21,16 @@ export interface InboundMessage {
   attachments?: { type: string; url: string }[];
   at?: Date;
   profile?: { email?: string; phone?: string };
+  /** ADS-08: where the customer came from (m.me ?ref=, ad click, utm_* on the website). */
+  attribution?: Attribution;
+  /** An event without a customer message (e.g. opening m.me?ref=…): stored as a system note, not as unread. */
+  systemNote?: string;
+}
+
+export interface Attribution {
+  ref?: string;
+  adId?: string;
+  src?: string;
 }
 
 /** Delivers an agent message to the customer on the channel. Throws when the platform refuses it. */
@@ -43,6 +54,7 @@ export class InboxService {
     private readonly prisma: PrismaService,
     private readonly events: InboxEvents,
     private readonly identities: IdentityService,
+    private readonly routing: RoutingService,
   ) {}
 
   registerSender(platform: ChannelPlatform, sender: ChannelSender) {
@@ -71,9 +83,43 @@ export class InboxService {
     }
   }
 
-  private async openConversation(shopId: string, channelId: string, identity: { id: string; customerId: string }) {
+  private async openConversation(input: InboundMessage, identity: { id: string; customerId: string }) {
+    const { shopId, channelId } = input;
+    const source = await this.source(input);
     const open = await this.prisma.db.conversation.findFirst({ where: { shopId, identityId: identity.id, status: 'open' }, orderBy: { createdAt: 'desc' } });
-    return open ?? this.prisma.db.conversation.create({ data: { shopId, channelId, customerId: identity.customerId, identityId: identity.id } });
+    let conv = open ?? (await this.prisma.db.conversation.create({ data: { shopId, channelId, customerId: identity.customerId, identityId: identity.id, ...source } }));
+    // A new ad click or ref link on an open conversation: the latest source counts for the conversation.
+    if (open && input.attribution && (source.ref || source.adId) && (open.ref !== source.ref || open.adId !== source.adId))
+      conv = await this.prisma.db.conversation.update({ where: { shopId, id: open.id }, data: source });
+    // The customer keeps the first source they came from (first touch).
+    await this.prisma.db.customer.updateMany({ where: { shopId, id: identity.customerId, src: null }, data: { src: source.src, ref: source.ref, campaignId: source.campaignId } });
+    if (!conv.assigneeId) {
+      const assigneeId = await this.routing.autoAssign(shopId, conv.id);
+      if (assigneeId) conv = { ...conv, assigneeId };
+    }
+    return conv;
+  }
+
+  /** ref / src / ad id of an inbound message, and the ad campaign they point to when the shop's ads are synced. */
+  private async source(input: InboundMessage) {
+    const a = input.attribution ?? {};
+    const src = a.src ?? (a.adId ? `${input.platform.toLowerCase()}_ads` : input.platform.toLowerCase());
+    return { ref: a.ref ?? null, adId: a.adId ?? null, src, campaignId: await this.campaignOf(input.shopId, a) };
+  }
+
+  private async campaignOf(shopId: string, a: Attribution): Promise<string | null> {
+    if (!a.adId && !a.ref) return null;
+    // Ads tables have no shopId: always go through this shop's ad accounts.
+    const accounts = (await this.prisma.db.adAccount.findMany({ where: { shopId }, select: { id: true } })).map((x) => x.id);
+    if (!accounts.length) return null;
+    const campaigns = await this.prisma.system.adCampaign.findMany({ where: { adAccountId: { in: accounts } }, select: { id: true, externalId: true } });
+    if (a.adId && campaigns.length) {
+      const sets = await this.prisma.system.adSet.findMany({ where: { campaignId: { in: campaigns.map((c) => c.id) } }, select: { id: true, campaignId: true } });
+      const ad = sets.length ? await this.prisma.system.ad.findFirst({ where: { externalId: a.adId, adSetId: { in: sets.map((x) => x.id) } }, select: { adSetId: true } }) : null;
+      const set = ad && sets.find((x) => x.id === ad.adSetId);
+      if (set) return set.campaignId;
+    }
+    return campaigns.find((c) => a.ref && (c.externalId === a.ref || c.id === a.ref))?.id ?? null;
   }
 
   /** Returns null for a duplicate delivery. */
@@ -86,12 +132,19 @@ export class InboxService {
       const { customerId } = await this.identities.attachContact(input.shopId, identity.customerId, input.profile);
       identity = { ...identity, customerId };
     }
-    const conv = await this.openConversation(input.shopId, input.channelId, identity);
+    const conv = await this.openConversation(input, identity);
     const at = input.at ?? new Date();
     let created;
     try {
       created = await this.prisma.db.message.create({
-        data: { conversationId: conv.id, sender: 'CUSTOMER', text: input.text?.slice(0, 5000), attachments: input.attachments?.length ? input.attachments : undefined, externalId, createdAt: at },
+        data: {
+          conversationId: conv.id,
+          sender: input.systemNote ? 'SYSTEM' : 'CUSTOMER',
+          text: (input.systemNote ?? input.text)?.slice(0, 5000),
+          attachments: input.attachments?.length ? input.attachments : undefined,
+          externalId,
+          createdAt: at,
+        },
       });
     } catch (err) {
       if (isUnique(err)) return null; // the same delivery raced in parallel
@@ -99,7 +152,7 @@ export class InboxService {
     }
     const updated = await this.prisma.db.conversation.update({
       where: { shopId: input.shopId, id: conv.id },
-      data: { unreadCount: { increment: 1 }, lastCustomerMessageAt: at, lastMessageAt: at },
+      data: input.systemNote ? { lastMessageAt: at } : { unreadCount: { increment: 1 }, lastCustomerMessageAt: at, lastMessageAt: at },
     });
     const result = { conversation: this.summary(updated, input.externalUserId), message: messageView(created) };
     this.events.emit('message', result);
@@ -168,7 +221,14 @@ export class InboxService {
   }
 
   async detail(member: MemberContext, id: string) {
-    const conv = await this.find(member, id);
+    let conv = await this.find(member, id);
+    // FIRST_VIEW: the Sale who opens an unassigned conversation takes it.
+    if (!conv.assigneeId && member.role === 'SALE') {
+      const claimed = await this.routing.claim(member.shopId, member.id, id);
+      // Claimed by us, or by another Sale a moment ago: read it again under this member's scope (404 if gone).
+      conv = await this.find(member, id);
+      if (claimed) await this.announceAssignee(conv);
+    }
     return (await this.decorate(member.shopId, [conv]))[0];
   }
 
@@ -226,6 +286,25 @@ export class InboxService {
       before: { botActive: before.botActive, status: before.status, assigneeId: before.assigneeId },
       after: { botActive: updated.botActive, status: updated.status, assigneeId: updated.assigneeId },
     };
+  }
+
+  /** Tells staff a conversation got an assignee (the assignee may only now be allowed to see it). */
+  private async announceAssignee(conv: { id: string; shopId: string; channelId: string; identityId: string; assigneeId: string | null }) {
+    const summary = this.summary(conv, await this.externalUserOf(conv.shopId, conv.identityId));
+    this.events.emit('conversation', { conversation: summary, change: { assigneeId: conv.assigneeId } });
+  }
+
+  /** Hands out conversations still waiting for a Sale, e.g. when a Sale comes online on Livechat. */
+  async assignWaiting(shopId: string) {
+    let assigned = 0;
+    for (const { id } of await this.routing.waiting(shopId)) {
+      const assigneeId = await this.routing.autoAssign(shopId, id);
+      if (!assigneeId) continue;
+      assigned++;
+      const conv = await this.prisma.db.conversation.findFirst({ where: { shopId, id } });
+      if (conv) await this.announceAssignee(conv);
+    }
+    return assigned;
   }
 
   /** Conversation of a webchat visitor, for history on reconnect. */

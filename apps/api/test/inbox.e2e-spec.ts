@@ -103,8 +103,9 @@ describe('Inbox (Step 5A)', () => {
     warehouse = await member('WAREHOUSE', 'kho');
     const out = await register('outsider');
     outsider = { token: out.token, shopId: out.shopId };
-    // Sale sees only conversations assigned to them.
-    await prisma.system.shop.update({ where: { id: shopId }, data: { saleDataScope: 'OWN' } });
+    // Sale sees only conversations assigned to them; assignment by hand, so the scope tests decide who gets what
+    // (automatic assignment is covered in routing.e2e-spec.ts).
+    await prisma.system.shop.update({ where: { id: shopId }, data: { saleDataScope: 'OWN', assignMode: 'MANUAL' } });
   });
   afterEach(() => {
     for (const s of sockets.splice(0)) s.disconnect();

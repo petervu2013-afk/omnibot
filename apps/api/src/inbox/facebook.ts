@@ -20,16 +20,39 @@ export interface FacebookInbound {
   text?: string;
   attachments: { type: string; url: string }[];
   at: Date;
+  /** ADS-08: m.me link ?ref= and/or the ad clicked (Click-to-Messenger). */
+  referral?: { ref?: string; adId?: string };
+  /** True for a referral without a customer message (an existing chat reopened through a link or ad). */
+  referralOnly?: boolean;
+}
+
+interface Referral {
+  ref?: string;
+  ad_id?: string;
+  source?: string;
+  type?: string;
+}
+
+const clean = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 200) : undefined);
+function referralOf(r: Referral | undefined): FacebookInbound['referral'] {
+  const ref = clean(r?.ref);
+  const adId = clean(r?.ad_id);
+  return ref || adId ? { ...(ref ? { ref } : {}), ...(adId ? { adId } : {}) } : undefined;
 }
 
 interface MessagingEvent {
   sender?: { id?: string };
   recipient?: { id?: string };
   timestamp?: number;
-  message?: { mid?: string; text?: string; is_echo?: boolean; attachments?: { type?: string; payload?: { url?: string } }[] };
+  message?: { mid?: string; text?: string; is_echo?: boolean; attachments?: { type?: string; payload?: { url?: string } }[]; referral?: Referral };
+  referral?: Referral; // messaging_referrals: link or ad opened in an existing conversation
+  postback?: { referral?: Referral }; // "Get started" pressed after opening a link or ad
 }
 
-/** Customer messages from a `page` webhook body. Echoes of our own sends, reads and deliveries are skipped. */
+/**
+ * Customer messages and referrals from a `page` webhook body. Echoes of our own sends, reads and deliveries are
+ * skipped. A referral without a message gets a stable id (sender + time) so a redelivery is still dropped.
+ */
 export function parseWebhook(body: unknown): FacebookInbound[] {
   const b = body as { object?: string; entry?: { id?: string; messaging?: MessagingEvent[] }[] };
   if (b?.object !== 'page' || !Array.isArray(b.entry)) return [];
@@ -37,6 +60,19 @@ export function parseWebhook(body: unknown): FacebookInbound[] {
   for (const entry of b.entry) {
     for (const ev of entry.messaging ?? []) {
       const m = ev.message;
+      const standalone = referralOf(ev.referral ?? ev.postback?.referral);
+      if (!m && standalone && ev.sender?.id && entry.id) {
+        out.push({
+          pageId: entry.id,
+          senderId: ev.sender.id,
+          mid: `ref:${ev.sender.id}:${ev.timestamp ?? 0}`,
+          attachments: [],
+          at: ev.timestamp ? new Date(ev.timestamp) : new Date(),
+          referral: standalone,
+          referralOnly: true,
+        });
+        continue;
+      }
       if (!m?.mid || m.is_echo || !ev.sender?.id || !entry.id) continue;
       out.push({
         pageId: entry.id,
@@ -45,6 +81,7 @@ export function parseWebhook(body: unknown): FacebookInbound[] {
         text: m.text,
         attachments: (m.attachments ?? []).filter((a) => a.payload?.url).map((a) => ({ type: a.type ?? 'file', url: a.payload!.url! })),
         at: ev.timestamp ? new Date(ev.timestamp) : new Date(),
+        referral: referralOf(m.referral),
       });
     }
   }

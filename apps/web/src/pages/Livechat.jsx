@@ -226,8 +226,10 @@ function Thread({ id, typing, onTyping, onBack, toast, refreshList }) {
         <div className="lc-messages" ref={bodyRef} data-testid="messages">
           {count >= 50 && !older.done && <button className="btn sm" style={{ alignSelf: 'center' }} disabled={older.loading} onClick={loadOlder}>Tải tin cũ hơn</button>}
           {messages.isPending && <div className="muted small">Đang tải…</div>}
-          {messages.data?.map((m) => (
-            <div key={m.id} className={`msg ${m.sender === 'CUSTOMER' ? 'in' : 'out'} ${m.sender === 'BOT' ? 'bot' : ''} ${m.sender === 'AI' ? 'ai' : ''}`}>
+          {messages.data?.map((m) => m.sender === 'SYSTEM' ? (
+            <div key={m.id} className="muted small" data-testid="system-note" style={{ alignSelf: 'center', textAlign: 'center' }}>{m.text} · {time(m.createdAt)}</div>
+          ) : (
+            <div key={m.id} className={`msg${m.sender === 'CUSTOMER' ? 'in' : 'out'} ${m.sender === 'BOT' ? 'bot' : ''} ${m.sender === 'AI' ? 'ai' : ''}`}>
               <div className="bubble">
                 {m.text}
                 {Array.isArray(m.attachments) && m.attachments.map((a) => <div key={a.url}><a href={a.url} target="_blank" rel="noopener noreferrer nofollow">[{a.type}]</a></div>)}
@@ -276,6 +278,9 @@ function Thread({ id, typing, onTyping, onBack, toast, refreshList }) {
               </select>
             ) : <span className="muted small">{c.assigneeName ?? 'Chưa giao'}</span>}
           </label>
+        )}
+        {c?.src && (
+          <div className="small" data-testid="conversation-source"><span className="muted">Nguồn:</span> {c.src}{c.ref ? <> · <span className="muted">ref:</span> <code>{c.ref}</code></> : null}</div>
         )}
       </aside>
     </>

@@ -12,6 +12,7 @@
 /** Models with a required `shopId` column. Kept in sync with prisma/schema.prisma by tenant-guard.spec.ts. */
 export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'ShopMember',
+  'WorkShift',
   'Invitation',
   'Channel',
   'Customer',
